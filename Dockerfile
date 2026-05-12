@@ -1,0 +1,30 @@
+FROM python:3.12-slim
+
+ARG QUARTO_VERSION=1.9.37
+ARG TARGETARCH
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH"
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl make tar \
+    && curl -fsSL -o quarto.tar.gz \
+        "https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VERSION}/quarto-${QUARTO_VERSION}-linux-${TARGETARCH}.tar.gz" \
+    && mkdir -p /opt/quarto \
+    && tar -xzf quarto.tar.gz -C /opt/quarto --strip-components=1 \
+    && ln -s /opt/quarto/bin/quarto /usr/local/bin/quarto \
+    && rm -f quarto.tar.gz \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:0.9.3 /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen
+
+COPY . .
+
+CMD ["make", "reproduce"]

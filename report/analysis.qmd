@@ -1,0 +1,27 @@
+---
+title: "Reproducible Financial Time Series Analysis"
+author:
+  - "Sati Ter-Harutyunyan"
+  - "Anna Perekhodko"
+  - "Markiian Strohyi"
+  - "Mykola Bolokh"
+date: today
+format:
+  html:
+    code-fold: show
+jupyter: python3
+---
+
+# Introduction
+
+# Reproducibility Problems in the Original Project
+
+# Data and Returns
+
+# Exploratory Diagnostics
+
+# GARCH Models
+
+# Forecast Evaluation
+
+# Reproducibility Notes

@@ -1,0 +1,7 @@
+services:
+  analysis:
+    build:
+      context: .
+    image: reproducible-research-project:foundation
+    volumes:
+      - ./outputs:/app/outputs
