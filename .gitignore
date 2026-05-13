@@ -15,6 +15,7 @@ data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/raw/ATVI.csv
+!data/processed/atvi_processed.csv
 
 outputs/
 docs/_build/
