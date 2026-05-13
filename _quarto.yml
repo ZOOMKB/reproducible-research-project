@@ -1,0 +1,15 @@
+project:
+  type: default
+  output-dir: outputs
+
+execute:
+  echo: true
+  freeze: false
+  warning: false
+
+format:
+  html:
+    embed-resources: true
+    theme: cosmo
+    toc: true
+    toc-depth: 3
