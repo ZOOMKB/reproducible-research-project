@@ -12,16 +12,162 @@ format:
 jupyter: python3
 ---
 
+```{python}
+#| label: setup
+#| include: false
+
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path.cwd()
+if not (PROJECT_ROOT / "src").exists():
+    PROJECT_ROOT = PROJECT_ROOT.parent
+
+sys.path.insert(0, str(PROJECT_ROOT))
+```
+
 # Introduction
+
+This project rewrites the original R-based ATVI GARCH analysis as a
+reproducible Python project. The goal is to keep the statistical workflow
+transparent and runnable from a clean environment.
 
 # Reproducibility Problems in the Original Project
 
+The original project provides useful analysis, but several details make it hard
+to reproduce directly:
+
+- source files are tied to an R/RStudio workflow;
+- paths in the R Markdown file point to the author's local machine;
+- dependencies are not captured in a container or lockfile;
+- data preparation, exploratory analysis, modelling, and reporting are tightly
+  coupled inside the report.
+
+This rewrite separates reusable Python code from the final report and makes the
+environment reproducible with `uv`, `Makefile`, Quarto, Sphinx, and Docker.
+
 # Data and Returns
+
+The raw dataset is stored in `data/raw/ATVI.csv`. The processing step creates a
+stable dataset in `data/processed/atvi_processed.csv` with adjusted log prices,
+close-to-close log returns, percentage returns, and Garman-Klass volatility.
+
+```{python}
+#| label: data-eda-pipeline
+
+from IPython.display import Image, display
+
+from src.pipeline import run_data_eda
+
+data_eda = run_data_eda()
+processed = data_eda.processed_data
+```
+
+```{python}
+#| label: data-summary
+
+summary = {
+    "rows": len(processed),
+    "start_date": processed["Date"].min().date(),
+    "end_date": processed["Date"].max().date(),
+    "columns": len(processed.columns),
+}
+summary
+```
+
+```{python}
+#| label: processed-head
+
+processed[
+    [
+        "Date",
+        "Open",
+        "High",
+        "Low",
+        "Close",
+        "Adjusted",
+        "log_adjusted",
+        "cc_ret",
+        "return_pct",
+        "gk_vol",
+    ]
+].head()
+```
+
+The processed dataset contains 1,762 trading days from 5 January 2015 to
+31 December 2021. Returns are computed as close-to-close log differences of the
+adjusted close price:
+
+$$
+r_t = \log(P_t^{adj}) - \log(P_{t-1}^{adj})
+$$
+
+The percentage return column is simply:
+
+$$
+100 \times r_t
+$$
+
+The Garman-Klass volatility column is included because it will later serve as an
+external benchmark for evaluating fitted GARCH volatility.
 
 # Exploratory Diagnostics
 
+The first exploratory step is to inspect price levels and log prices. Both the
+Close and Adjusted series show persistent movement rather than fluctuation
+around a fixed mean. This is the standard visual pattern of a non-stationary
+financial price series.
+
+```{python}
+#| label: price-panels
+#| echo: false
+
+display(Image(filename=str(data_eda.price_plot_path)))
+```
+
+The ACF/PACF plot confirms the same point. The ACF of log adjusted prices decays
+very slowly, while the PACF has a dominant first-lag spike. This is consistent
+with a unit-root process.
+
+```{python}
+#| label: price-acf-pacf
+#| echo: false
+
+display(Image(filename=str(data_eda.acf_pacf_plot_path)))
+```
+
+The Augmented Dickey-Fuller checks below follow the same two-step logic used in
+the original analysis: first with a deterministic trend, then with a constant
+only. In both cases we fail to reject the unit-root null at the 5% level.
+
+```{python}
+#| label: adf-summary
+
+data_eda.adf_summary
+```
+
+This motivates the rest of the project: we do not model price levels directly.
+Instead, subsequent sections focus on log returns and volatility.
+
 # GARCH Models
+
+This section will be expanded in later pull requests.
 
 # Forecast Evaluation
 
+This section will be expanded in later pull requests.
+
 # Reproducibility Notes
+
+The data and EDA stage can be regenerated from the raw dataset by running the
+Python pipeline:
+
+```bash
+uv run python -m src.pipeline
+```
+
+The full report is rendered with:
+
+```bash
+make report
+```

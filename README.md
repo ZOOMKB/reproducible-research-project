@@ -3,10 +3,6 @@
 This repository is a reproducible Python rewrite of the original R project
 [Financial Time Series Analysis and Forecasting GARCH models](https://github.com/DavidAlexanderMoe/Financial-Time-Series-Analysis-and-Forecasting-GARCH-models).
 
-The goal of this course project is not to improve the econometric methodology.
-The goal is to make the research workflow reproducible, documented, automated,
-and suitable for collaborative development through GitHub pull requests.
-
 ## Group Members
 
 - Sati Ter-Harutyunyan
