@@ -99,13 +99,50 @@ Recommended workflow:
 git checkout main
 git pull --ff-only
 git checkout -b feature/short-description
+```
 
-# Make changes, then verify them
-make lint
-make test
+Edit files locally in VS Code.
 
-git add .
-git commit -m "type: describe the change"
+Run quick checks while working:
+
+```bash
+docker compose run --rm dev make lint
+docker compose run --rm dev make test
+```
+
+If the task changes reports, plots, data processing, dependencies, Docker, or
+pipeline logic, run final Docker checks before committing:
+
+```bash
+docker compose run --rm dev make reproduce
+docker compose build
+docker compose run --rm analysis
+```
+
+Then inspect and stage only the files related to your task:
+
+```bash
+git status
+git diff
+git add src/
+git add tests/
+git add report/analysis.qmd
+```
+
+Commit with a short subject and a wrapped body:
+
+```bash
+git commit \
+  -m "feat: add diagnostics" \
+  -m "Add plotting utilities for model volatility diagnostics." \
+  -m "Save figures to outputs/figures for reuse in the Quarto report."
+```
+
+Check the branch and push:
+
+```bash
+git status --short --branch
+git log --oneline origin/main..HEAD
 git push -u origin feature/short-description
 ```
 
