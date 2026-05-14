@@ -46,6 +46,12 @@ make report     # Render the Quarto HTML report
 make reproduce  # Run lint, tests, docs, and report rendering
 ```
 
+Regenerate the processed ATVI dataset only when intentionally updating data:
+
+```bash
+uv run python -m src.data
+```
+
 ## Docker
 
 The project has two Docker Compose services:
