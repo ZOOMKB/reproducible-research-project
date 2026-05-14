@@ -48,9 +48,34 @@ make reproduce  # Run lint, tests, docs, and report rendering
 
 ## Docker
 
-Build and run the reproducible environment:
+The project has two Docker Compose services:
+
+- `dev` mounts your local project files into the container and is intended for
+  day-to-day checks while developing.
+- `analysis` uses the code copied into the Docker image and is intended as the
+  final reproducibility runner before a pull request or presentation.
+
+Initial Docker setup:
 
 ```bash
+docker compose build
+docker compose run --rm dev uv sync --frozen
+docker compose run --rm dev make reproduce
+```
+
+Daily Docker checks:
+
+```bash
+docker compose run --rm dev make lint
+docker compose run --rm dev make test
+docker compose run --rm dev make report
+```
+
+Before opening a pull request for code, data, report, dependency, or pipeline
+changes:
+
+```bash
+docker compose run --rm dev make reproduce
 docker compose build
 docker compose run --rm analysis
 ```
@@ -66,7 +91,7 @@ Recommended workflow:
 
 ```bash
 git checkout main
-git pull
+git pull --ff-only
 git checkout -b feature/short-description
 
 # Make changes, then verify them
