@@ -46,11 +46,42 @@ make report     # Render the Quarto HTML report
 make reproduce  # Run lint, tests, docs, and report rendering
 ```
 
-## Docker
-
-Build and run the reproducible environment:
+Regenerate the processed ATVI dataset only when intentionally updating data:
 
 ```bash
+uv run python -m src.data
+```
+
+## Docker
+
+The project has two Docker Compose services:
+
+- `dev` mounts your local project files into the container and is intended for
+  day-to-day checks while developing.
+- `analysis` uses the code copied into the Docker image and is intended as the
+  final reproducibility runner before a pull request or presentation.
+
+Initial Docker setup:
+
+```bash
+docker compose build
+docker compose run --rm dev uv sync --frozen
+docker compose run --rm dev make reproduce
+```
+
+Daily Docker checks:
+
+```bash
+docker compose run --rm dev make lint
+docker compose run --rm dev make test
+docker compose run --rm dev make report
+```
+
+Before opening a pull request for code, data, report, dependency, or pipeline
+changes:
+
+```bash
+docker compose run --rm dev make reproduce
 docker compose build
 docker compose run --rm analysis
 ```
@@ -66,15 +97,52 @@ Recommended workflow:
 
 ```bash
 git checkout main
-git pull
+git pull --ff-only
 git checkout -b feature/short-description
+```
 
-# Make changes, then verify them
-make lint
-make test
+Edit files locally in VS Code.
 
-git add .
-git commit -m "type: describe the change"
+Run quick checks while working:
+
+```bash
+docker compose run --rm dev make lint
+docker compose run --rm dev make test
+```
+
+If the task changes reports, plots, data processing, dependencies, Docker, or
+pipeline logic, run final Docker checks before committing:
+
+```bash
+docker compose run --rm dev make reproduce
+docker compose build
+docker compose run --rm analysis
+```
+
+Then inspect and stage only the files related to your task:
+
+```bash
+git status
+git diff
+git add src/
+git add tests/
+git add report/analysis.qmd
+```
+
+Commit with a short subject and a wrapped body:
+
+```bash
+git commit \
+  -m "feat: add diagnostics" \
+  -m "Add plotting utilities for model volatility diagnostics." \
+  -m "Save figures to outputs/figures for reuse in the Quarto report."
+```
+
+Check the branch and push:
+
+```bash
+git status --short --branch
+git log --oneline origin/main..HEAD
 git push -u origin feature/short-description
 ```
 

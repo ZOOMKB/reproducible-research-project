@@ -5,3 +5,16 @@ services:
     image: reproducible-research-project:foundation
     volumes:
       - ./outputs:/app/outputs
+
+  dev:
+    build:
+      context: .
+    image: reproducible-research-project:foundation
+    working_dir: /app
+    volumes:
+      - .:/app
+      - project-venv:/app/.venv
+    command: /bin/sh
+
+volumes:
+  project-venv:

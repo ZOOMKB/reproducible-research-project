@@ -21,7 +21,7 @@ class DataEDAResult:
 
 
 def run_data_eda(save_figures: bool = True) -> DataEDAResult:
-    """Run the data processing and price-level EDA steps.
+    """Run the in-memory data processing and price-level EDA steps.
 
     Args:
         save_figures: Whether to write EDA figures to ``outputs/figures``.
@@ -30,7 +30,7 @@ def run_data_eda(save_figures: bool = True) -> DataEDAResult:
         Data and EDA artifacts used by the Quarto report.
     """
     processor = ATVIDataProcessor()
-    processed_data = processor.save_processed()
+    processed_data = processor.process()
 
     eda = PriceEDA(data=processed_data)
     price_figure = eda.price_plot(save=save_figures)
