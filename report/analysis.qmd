@@ -149,6 +149,144 @@ data_eda.adf_summary
 This motivates the rest of the project: we do not model price levels directly.
 Instead, subsequent sections focus on log returns and volatility.
 
+# Returns Diagnostics
+
+After confirming that price levels are non-stationary, the analysis shifts to
+percentage log returns. Returns are the standard input for volatility modelling
+because they fluctuate around a more stable mean than price levels.
+
+```{python}
+#| label: returns-analysis-run
+#| echo: false
+#| output: false
+
+from src.returns_analysis import ReturnsAnalyzer
+
+returns_analyzer = ReturnsAnalyzer(data=processed)
+
+returns_analyzer.returns_plot()
+returns_analyzer.acf_pacf_plot()
+returns_analyzer.acf_triple_plot()
+returns_analyzer.distribution_plot()
+
+returns_ljung_box = returns_analyzer.ljung_box_summary()
+returns_adf = returns_analyzer.adf_returns_summary()
+returns_bds = returns_analyzer.bds_summary()
+returns_arch = returns_analyzer.arch_summary()
+returns_jb = returns_analyzer.jarque_bera_summary()
+
+returns_figures_dir = returns_analyzer.figures_dir
+```
+
+```{python}
+#| label: returns-plot
+#| echo: false
+
+display(Image(filename=str(returns_figures_dir / "03_returns.png")))
+```
+
+The return series fluctuates around zero and exhibits periods of elevated
+volatility followed by calmer periods. This clustering of large and small
+movements is a common stylized fact of financial return series.
+
+```{python}
+#| label: returns-acf-pacf
+#| echo: false
+
+display(Image(filename=str(returns_figures_dir / "04_returns_acf_pacf.png")))
+```
+
+The return ACF and PACF are substantially weaker than those of price levels,
+although several statistically significant short-lag autocorrelations remain.
+This suggests weak linear dependence in returns while still motivating a simple
+conditional mean specification before volatility modelling.
+
+```{python}
+#| label: returns-ljung-box
+#| echo: false
+
+returns_ljung_box
+```
+
+The Ljung-Box tests reject the null hypothesis of no autocorrelation at the
+reported lags. This suggests that the returns still contain serial dependence.
+
+```{python}
+#| label: returns-adf
+#| echo: false
+
+returns_adf
+```
+
+The ADF tests reject the unit-root null for returns under both specifications.
+This supports treating the return series as stationary.
+
+```{python}
+#| label: returns-volatility-acf
+#| echo: false
+
+display(Image(filename=str(returns_figures_dir / "05_returns_acf_triple.png")))
+```
+
+The ACFs of absolute and squared returns display persistent positive
+autocorrelation with slow decay across many lags. This is strong evidence of
+volatility clustering, one of the primary stylized facts of financial returns.
+Large return movements tend to be followed by further large movements, while
+periods of low volatility also persist over time.
+
+```{python}
+#| label: returns-arch
+#| echo: false
+
+returns_arch
+```
+
+The ARCH LM tests strongly reject the null hypothesis of no ARCH effects across
+all reported lag orders. This confirms the presence of conditional
+heteroskedasticity and provides direct statistical motivation for fitting
+GARCH-type volatility models.
+
+```{python}
+#| label: returns-bds
+#| echo: false
+
+returns_bds
+```
+
+The BDS test rejects independence, suggesting that the return series contains
+nonlinear dependence not captured by a simple independent-noise model.
+
+```{python}
+#| label: returns-distribution
+#| echo: false
+
+display(Image(filename=str(returns_figures_dir / "06_returns_distribution.png")))
+```
+
+The histogram and Q-Q plot show substantial departures from normality,
+particularly in the tails. The return distribution is more peaked around the
+center and exhibits heavier tails than a Gaussian distribution, indicating
+leptokurtosis and an elevated probability of extreme market movements.
+
+```{python}
+#| label: returns-jarque-bera
+#| echo: false
+
+import pandas as pd
+
+pd.DataFrame(
+    {
+        "statistic": ["Jarque-Bera"],
+        "value": [returns_jb[0]],
+        "p_value": [returns_jb[1]],
+    }
+)
+```
+
+The Jarque-Bera test strongly rejects normality, supporting the conclusion that
+returns are heavy-tailed and leptokurtic. This motivates the later use of
+Student-t innovations rather than Gaussian errors in volatility models.
+
 # GARCH Models
 
 This section will be expanded in later pull requests.
