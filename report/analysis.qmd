@@ -287,6 +287,58 @@ The Jarque-Bera test strongly rejects normality, supporting the conclusion that
 returns are heavy-tailed and leptokurtic. This motivates the later use of
 Student-t innovations rather than Gaussian errors in volatility models.
 
+# ARMA Baseline Model
+
+Before fitting GARCH models, we estimate a simple ARMA-style mean equation for
+returns. This provides a baseline model for the conditional mean and allows the
+remaining residual dependence to be inspected.
+
+```{python}
+#| label: arma-baseline-run
+#| echo: false
+#| output: false
+
+from src.arma_model import ARMAModel
+
+arma_model = ARMAModel(yret=returns_analyzer.compute_yret())
+
+arma_result = arma_model.fit()
+arma_model.residual_acf_plot(arma_result)
+
+arma_figures_dir = arma_model.figures_dir
+```
+
+```{python}
+#| label: arma-summary
+#| echo: false
+
+print(arma_result.summary())
+```
+
+The estimated ARMA mean equation captures a small but statistically significant
+first-order dependence in returns. The negative AR(1) coefficient suggests mild
+short-run mean reversion, although the magnitude of the effect remains limited.
+The estimated Student-t degrees of freedom parameter is relatively low,
+supporting the earlier evidence of heavy tails and leptokurtosis in returns.
+
+```{python}
+#| label: arma-residual-acf
+#| echo: false
+
+display(Image(filename=str(arma_figures_dir / "07_arma_residuals.png")))
+```
+
+The residual autocorrelation is substantially reduced after fitting the ARMA
+mean equation. However, the absolute and squared residuals continue to display
+persistent positive autocorrelation across multiple lags. This indicates that
+volatility clustering and conditional heteroskedasticity remain unexplained by
+the mean specification alone.
+
+The persistence in residual volatility suggests that the dependence structure is
+primarily located in the conditional variance rather than the conditional mean.
+This provides direct motivation for the GARCH models introduced in the following
+section.
+
 # GARCH Models
 
 This section will be expanded in later pull requests.
