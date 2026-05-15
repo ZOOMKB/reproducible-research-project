@@ -78,6 +78,7 @@ class ReturnsAnalyzer:
         for ax in axes:
             ax.set_xlabel("Lag")
             ax.set_ylabel("Correlation")
+            ax.set_ylim(-0.1, 0.1)
 
         fig.tight_layout()
         if save:
@@ -167,6 +168,9 @@ class ReturnsAnalyzer:
         plot_acf(yret, lags=100, ax=axes[0], title="Returns", zero=False)
         plot_acf(np.abs(yret), lags=100, ax=axes[1], title="|Returns|", zero=False)
         plot_acf(yret**2, lags=100, ax=axes[2], title="Returns²", zero=False)
+
+        for ax in axes:
+            ax.set_ylim(-0.25, 0.25)
 
         fig.tight_layout()
         if save:

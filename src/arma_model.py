@@ -103,6 +103,9 @@ class ARMAModel:
         plot_acf(np.abs(residuals), lags=100, ax=axes[1], title="|res|", zero=False)
         plot_acf(residuals**2, lags=100, ax=axes[2], title="res²", zero=False)
 
+        for ax in axes:
+            ax.set_ylim(-0.25, 0.25)
+
         fig.tight_layout()
         if save:
             self._save_figure(fig, "07_arma_residuals.png")
