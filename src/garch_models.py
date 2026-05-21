@@ -51,7 +51,7 @@ FIGURES_DIR = OUTPUTS_DIR / "figures"
 FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# 
 @dataclass
 class GARCHModels:
     """Fit and compare GARCH-family volatility models on ATVI returns.
@@ -211,22 +211,215 @@ class GARCHModels:
         print(robust_table.to_string())
 
     # model fitting 
-
+    
     def fit_sgarch(self) -> ARCHModelResult:
-        """Fit sGARCH(1,1) + ARMA(1,0) + Student-t. Stores as self.fit1."""
-        raise NotImplementedError
+        """Fit sGARCH(1,1) + ARMA(1,0) + Student-t errors.
+
+        Variance equation: sigma2(t) = omega + alpha*u2(t-1) + beta*sigma2(t-1).
+        Stores result as self.fit1 with np1=6 parameters.
+
+        Returns:
+            Fitted ARCHModelResult stored as self.fit1.
+        """
+        model = ARX(self.yret, lags=1, constant=True)
+        model.volatility = GARCH(p=1, q=1)
+        model.distribution = StudentsT()
+        self.fit1 = model.fit(disp="off", cov_type="robust")
+        self.np1 = len(self.fit1.params)
+
+        self._print_ic(self.fit1, "sGARCH(1,1)")
+        self._print_coef_tables(self.fit1, "sGARCH(1,1)")
+
+        return self.fit1
 
     def fit_gjrgarch(self) -> ARCHModelResult:
-        """Fit GJR-GARCH(1,1). Stores as self.fit2. IC + coefs only."""
-        raise NotImplementedError
+        """Fit GJR-GARCH(1,1) + ARMA(1,0) + Student-t errors.
+
+        Variance equation:
+            sigma2(t) = omega + alpha*u2(t-1)
+                        + gamma*u2(t-1)*I(u(t-1)<0) + beta*sigma2(t-1).
+
+        The o=1 argument in GARCH adds the asymmetric leverage term.
+        Only IC and coefficient tables are printed — no diagnostics.
+        Stores result as self.fit2 with np2=7 parameters.
+
+        Expected: alpha1 not significant (p~1.0), gamma1=0.13526 significant,
+        AIC=4.068428.
+
+        Returns:
+            Fitted ARCHModelResult stored as self.fit2.
+        """
+        model = ARX(self.yret, lags=1, constant=True)
+        model.volatility = GARCH(p=1, o=1, q=1)
+        model.distribution = StudentsT()
+        self.fit2 = model.fit(disp="off", cov_type="robust")
+        self.np2 = len(self.fit2.params)
+
+        self._print_ic(self.fit2, "GJR-GARCH(1,1)")
+        self._print_coef_tables(self.fit2, "GJR-GARCH(1,1)")
+
+        return self.fit2
 
     def fgarch_to_gjr(self, fit: ARCHModelResult, submodel: str) -> dict:
-        """Convert fGARCH (alpha, eta1) parametrisation to (alpha, gamma)."""
-        raise NotImplementedError
+        """Convert fGARCH (alpha, eta1) parametrisation to (alpha, gamma) form.
+
+        Port of .fgarch.2.gjr() from TSA-Finance-Functions.R. Uses the delta
+        method to propagate uncertainty through the parameter transformation,
+        giving correct standard errors for the converted parameters.
+
+        The fGARCH framework parametrises the asymmetric GARCH model using
+        (alpha, eta1) internally. This function converts to the traditional
+        (alpha, gamma) form used in the R output and the analysis narrative.
+
+        Transformation formulas:
+            GJRGARCH: alpha_s = alpha*(1-eta1)**2,  gamma_s = 4*alpha*eta1
+            TGARCH:   alpha_s = alpha*(1-eta1),     gamma_s = 2*alpha*eta1
+
+        Args:
+            fit: Fitted ARCHModelResult from an asymmetric GARCH model.
+            submodel: Either 'GJRGARCH' or 'TGARCH'.
+
+        Returns:
+            dict with keys:
+                'coef'           converted parameter vector
+                'se'             standard errors after delta method
+                'robust_se'      robust standard errors after delta method
+                'matcoef'        DataFrame with standard coef table
+                'robust_matcoef' DataFrame with robust coef table
+        """
+        est   = fit.params.values.copy()
+        names = fit.params.index.tolist()
+
+        # covariance matrices — standard and robust
+        vcov   = fit.param_cov.values
+        robust = fit.model.fit(
+            disp="off", cov_type="robust",
+            starting_values=fit.params.values
+        )
+        vcov_r = robust.param_cov.values
+
+        np_ = len(est)
+
+        # locate alpha[1] and eta11 in the parameter vector
+        # arch names them 'alpha[1]' and 'eta11' for EGARCH with o=1
+        try:
+            inda = next(i for i, n in enumerate(names) if "alpha" in n.lower())
+        except StopIteration:
+            raise ValueError(f"Could not find alpha parameter in: {names}")
+
+        try:
+            inde = next(
+                i for i, n in enumerate(names)
+                if "eta" in n.lower() or "gamma" in n.lower()
+            )
+        except StopIteration:
+            raise ValueError(f"Could not find eta/gamma parameter in: {names}")
+
+        alpha = est[inda]
+        eta1  = est[inde]
+
+        # parameter transformation
+        if submodel == "GJRGARCH":
+            alpha_s = alpha * (1 - eta1) ** 2
+            gamma_s = 4 * alpha * eta1
+        elif submodel == "TGARCH":
+            alpha_s = alpha * (1 - eta1)
+            gamma_s = 2 * alpha * eta1
+        else:
+            raise ValueError(f"submodel must be 'GJRGARCH' or 'TGARCH', got '{submodel}'")
+
+        # build delta-method transformation matrix D
+        D = np.eye(np_)
+        if submodel == "GJRGARCH":
+            D[inda, inda] = (1 - eta1) ** 2
+            D[inda, inde] = -2 * alpha * (1 - eta1)
+            D[inde, inda] = 4 * eta1
+            D[inde, inde] = 4 * alpha
+        else:
+            D[inda, inda] = 1 - eta1
+            D[inda, inde] = -alpha
+            D[inde, inda] = 2 * eta1
+            D[inde, inde] = 2 * alpha
+
+        # propagate covariance through the transformation
+        new_vcov   = D @ vcov   @ D.T
+        new_vcov_r = D @ vcov_r @ D.T
+
+        se   = np.sqrt(np.abs(np.diag(new_vcov)))
+        se_r = np.sqrt(np.abs(np.diag(new_vcov_r)))
+
+        # update parameter vector with converted values
+        est[inda] = alpha_s
+        est[inde] = gamma_s
+
+        # rename eta parameter to gamma1 in the output
+        out_names = names.copy()
+        out_names[inde] = "gamma1"
+
+        # t-stats and p-values using standard normal (matches R output)
+        t_vals  = est / se
+        p_vals  = 2 * (1 - stats.norm.cdf(np.abs(t_vals)))
+        t_rob   = est / se_r
+        p_rob   = 2 * (1 - stats.norm.cdf(np.abs(t_rob)))
+
+        cols = ["Estimate", "Std. Error", "t value", "Pr(>|t|)"]
+
+        matcoef = pd.DataFrame(
+            np.column_stack([est, se, t_vals, p_vals]),
+            index=out_names,
+            columns=cols,
+        )
+        robust_matcoef = pd.DataFrame(
+            np.column_stack([est, se_r, t_rob, p_rob]),
+            index=out_names,
+            columns=cols,
+        )
+
+        return {
+            "coef":           est,
+            "se":             se,
+            "robust_se":      se_r,
+            "matcoef":        matcoef,
+            "robust_matcoef": robust_matcoef,
+        }
 
     def fit_gjrgarch_fgarch(self) -> tuple:
-        """Fit GJR via EGARCH for verification. Stores fit4 and fit4c."""
-        raise NotImplementedError
+        """Fit GJR-GARCH via EGARCH framework as a verification step.
+
+        In Python the arch library does not provide a native fGARCH family
+        framework. EGARCH(p=1, o=1, q=1) is used as the closest available
+        asymmetric model. The fgarch_to_gjr conversion is applied to produce
+        a comparable coefficient table.
+
+        This is a verification step only — the result is compared against
+        fit2 (direct GJR-GARCH) to confirm both approaches yield consistent
+        parameter estimates. It does not replace fit2 in the analysis.
+
+        Stores results as self.fit4 (raw EGARCH fit) and self.fit4c (converted
+        coefficient dict).
+
+        Returns:
+            Tuple of (fit4, fit4c).
+        """
+        model = ARX(self.yret, lags=1, constant=True)
+        model.volatility = EGARCH(p=1, o=1, q=1)
+        model.distribution = StudentsT()
+        self.fit4 = model.fit(disp="off", cov_type="robust")
+
+        self.fit4c = self.fgarch_to_gjr(self.fit4, "GJRGARCH")
+
+        print("\nVerification: GJR via EGARCH framework")
+        self._print_ic(self.fit4, "fGARCH-GJR (EGARCH)")
+        print("\nConverted coefficient table (fit4c):")
+        print(self.fit4c["robust_matcoef"].to_string())
+
+        print("\nDirect GJR-GARCH (fit2) for comparison:")
+        if self.fit2 is not None:
+            print(self.fit2.params.to_string())
+        else:
+            print("  fit2 not yet available — run fit_gjrgarch() first")
+
+        return self.fit4, self.fit4c
 
     def fit_tgarch(self) -> tuple:
         """Fit T-GARCH via EGARCH approximation. Stores fit5 and fit5c."""
