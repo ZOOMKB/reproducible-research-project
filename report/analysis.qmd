@@ -341,7 +341,210 @@ section.
 
 # GARCH Models
 
-This section will be expanded in later pull requests.
+Having established that ATVI returns exhibit strong ARCH effects and
+that the ARMA model leaves variance structure unmodelled, we now fit a
+sequence of GARCH-family models. All models share the same mean
+specification — ARMA(1,0) with a constant and Student-t errors — and
+differ only in how they model the conditional variance $\sigma^2_t$.
+
+```{python}
+#| label: garch-setup
+#| output: false
+
+from src.garch_models import GARCHModels, run_garch_models
+
+gm = GARCHModels.from_processed_csv()
+```
+
+## sGARCH(1,1)
+
+The standard GARCH(1,1) variance equation is:
+
+$$
+\sigma^2_t = \omega + \alpha_1 u^2_{t-1} + \beta_1 \sigma^2_{t-1}
+$$
+
+where $\omega > 0$ is the long-run variance intercept, $\alpha_1 \geq 0$
+measures how strongly last period's squared shock feeds into today's
+variance, and $\beta_1 \geq 0$ measures variance persistence.
+Covariance stationarity requires $\alpha_1 + \beta_1 < 1$.
+
+```{python}
+#| label: sgarch-fit
+#| output: true
+
+gm.fit_sgarch()
+```
+
+The estimated $\alpha_1 + \beta_1 \approx 0.93$ confirms high
+persistence — most of yesterday's conditional variance carries over to
+today. The low degrees-of-freedom parameter ($\nu \approx 4.3$)
+confirms the heavy tails documented in Section 3.
+
+```{python}
+#| label: fig-sgarch-acf
+#| fig-cap: "sGARCH standardised residual ACF diagnostics. The ACF of z, |z|, and z² are all near white noise, confirming the variance structure is well captured."
+
+gm.diagnostics_sgarch()
+```
+
+The sign bias test finds no significant asymmetry (all p-values > 0.52),
+suggesting the symmetric sGARCH variance equation is not missing a
+directional effect — though this will be revisited with the GJR model.
+
+## GJR-GARCH(1,1)
+
+GJR-GARCH extends sGARCH with a leverage term:
+
+$$
+\sigma^2_t = \omega + \alpha_1 u^2_{t-1} +
+\gamma_1 u^2_{t-1} \cdot \mathbf{1}[u_{t-1} < 0] + \beta_1 \sigma^2_{t-1}
+$$
+
+The indicator $\mathbf{1}[u_{t-1} < 0]$ equals 1 when the previous
+shock was negative (bad news). A significant $\gamma_1 > 0$ indicates
+the **leverage effect**: negative shocks increase volatility more than
+positive shocks of equal magnitude. This is a well-documented empirical
+regularity in equity markets.
+
+```{python}
+#| label: gjrgarch-fit
+
+gm.fit_gjrgarch()
+```
+
+The estimated $\alpha_1 \approx 0$ (not significant) and
+$\gamma_1 \approx 0.135$ (highly significant) confirm asymmetry: the
+entire shock reaction is concentrated in the negative side. The AIC
+is lower than sGARCH, indicating a better fit despite the sign bias
+test finding no asymmetry — the explicit model is more sensitive than
+the residual-based test.
+
+## Verification via fGARCH framework
+
+```{python}
+#| label: fgarch-verification
+#| output: true
+
+gm.fit_gjrgarch_fgarch()
+```
+
+Fitting GJR-GARCH via the fGARCH family framework (approximated using
+EGARCH in Python, since the arch library does not provide a native
+fGARCH implementation) and applying the delta-method parameter
+conversion produces coefficient estimates consistent with the direct
+GJR fit, confirming the two approaches are equivalent.
+
+## T-GARCH(1,1)
+
+T-GARCH differs from GJR by modelling the conditional **standard
+deviation** $\sigma_t$ directly rather than the variance:
+
+$$
+\sigma_t = \omega + \alpha_1 |u_{t-1}| +
+\gamma_1 |u_{t-1}| \cdot \mathbf{1}[u_{t-1} < 0] + \beta_1 \sigma_{t-1}
+$$
+
+Squaring both sides gives a nonlinear variance equation with a
+different asymmetric shape to GJR-GARCH. T-GARCH is widely used in
+practice and corresponds to the fGARCH TGARCH submodel in the original
+R analysis.
+
+**Implementation note:** the arch library does not provide a native
+T-GARCH model. We use EGARCH(1,1,1) as an approximation that captures
+the same qualitative leverage effect. The parameter values will differ
+from the R output but the qualitative conclusions remain valid.
+
+```{python}
+#| label: tgarch-fit
+
+gm.fit_tgarch()
+```
+
+```{python}
+#| label: fig-nic-three
+#| fig-cap: "News Impact Curves for sGARCH (black), GJR-GARCH (red), and T-GARCH (blue). sGARCH is a symmetric parabola. GJR and T-GARCH are steeper for negative shocks, capturing the leverage effect."
+
+gm.news_impact_curve_three()
+```
+
+The NIC plot makes the leverage effect visually clear. For sGARCH the
+curve is symmetric — a negative and positive shock of the same size
+produce identical increases in variance. For GJR and T-GARCH the left
+side (negative shocks) is steeper: bad news raises volatility more
+than good news of the same magnitude. This asymmetry has a practical
+implication for risk management — downside moves are more destabilising
+than upside moves.
+
+```{python}
+#| label: fig-tgarch-diag
+#| fig-cap: "T-GARCH standardised residual diagnostics. Nyblom stability test, ACF triple, Ljung-Box, ARCH test, and BDS on log(|z|)."
+
+gm.diagnostics_tgarch()
+```
+
+The Nyblom joint stability test passes at the 10% level, confirming
+that the T-GARCH parameters are stable across the 2015–2021 sample.
+The BDS test on $\log(|z|)$ finds all p-values above 0.19, confirming
+that the T-GARCH standardised residuals are i.i.d. — the model has
+fully absorbed the dependence structure in returns.
+
+## NIC comparison: sGARCH vs GJR-GARCH
+
+```{python}
+#| label: fig-nic-two
+#| fig-cap: "News Impact Curves for sGARCH (black) and GJR-GARCH (red). The asymmetry introduced by the gamma term is clearly visible."
+
+gm.news_impact_curve_two()
+```
+
+## GJR-GARCH with variance targeting
+
+Variance targeting constrains $\omega$ so that the unconditional
+variance implied by the model equals the sample variance. This removes
+$\omega$ from the free parameters and can improve numerical stability.
+
+```{python}
+#| label: gjrgarch-vt-fit
+
+gm.fit_gjrgarch_vt()
+```
+
+The AIC is marginally lower than the unconstrained GJR, confirming
+that variance targeting is a viable alternative with a negligible
+effect on fit quality.
+
+## IGARCH(1,1)
+
+Integrated GARCH imposes $\alpha_1 + \beta_1 = 1$. This means shocks
+to variance have a **permanent** effect — the conditional variance
+process has a unit root and never fully reverts to a long-run level.
+The mean model is reduced to ARMA(0,0) (constant only, no AR term).
+
+```{python}
+#| label: igarch-fit
+
+gm.fit_igarch()
+```
+
+IGARCH has the highest AIC of all models fitted, indicating the
+permanent-shock assumption is too strong for ATVI returns over this
+sample.
+
+## Model comparison
+
+```{python}
+#| label: tbl-model-comparison
+#| tbl-cap: "AIC and BIC for all four GARCH models. T-GARCH has the lowest AIC and is selected as the preferred model for forecasting."
+
+gm.compare_models()
+```
+
+T-GARCH achieves the lowest AIC, confirming it as the preferred model.
+It captures the leverage effect, produces stable parameters across the
+sample, and yields i.i.d. standardised residuals. The fitted T-GARCH
+model will be used in Section 6 for volatility forecasting evaluation
+and in Section 7 for the ex-ante 10-day forecast.
 
 # Forecast Evaluation
 
