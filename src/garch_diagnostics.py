@@ -86,10 +86,14 @@ class GARCHDiagnostics:
         """
         if fit is None:
             raise RuntimeError(
-                f"{name} is not fitted yet. "
-                f"Call the corresponding fit_* method first."
+                f"{name} is not fitted yet. Call the corresponding fit_* method first."
             )
         return fit
+
+    @staticmethod
+    def _to_array(x) -> np.ndarray:
+        """Drop NaNs from a Series or ndarray and return a clean array."""
+        return pd.Series(x).dropna().values
 
     def _acf_triple(
         self,
@@ -109,9 +113,9 @@ class GARCHDiagnostics:
         fig, axes = plt.subplots(3, 1, figsize=(12, 9))
         fig.suptitle(f"ACF of standardised residuals — {title_prefix}", fontsize=12)
 
-        plot_acf(z,           lags=100, ax=axes[0], title="z",   zero=False, alpha=0.05)
-        plot_acf(np.abs(z),   lags=100, ax=axes[1], title="|z|", zero=False, alpha=0.05)
-        plot_acf(z ** 2,      lags=100, ax=axes[2], title="z²",  zero=False, alpha=0.05)
+        plot_acf(z, lags=100, ax=axes[0], title="z", zero=False, alpha=0.05)
+        plot_acf(np.abs(z), lags=100, ax=axes[1], title="|z|", zero=False, alpha=0.05)
+        plot_acf(z**2, lags=100, ax=axes[2], title="z²", zero=False, alpha=0.05)
 
         for ax in axes:
             ax.set_xlabel("Lag")
@@ -141,7 +145,7 @@ class GARCHDiagnostics:
         """
         lags = [np_ + k for k in [1, 2, 5, 10, 15, 20]]
 
-        for series, name in [(z, "z"), (np.abs(z), "|z|"), (z ** 2, "z²")]:
+        for series, name in [(z, "z"), (np.abs(z), "|z|"), (z**2, "z²")]:
             result = acorr_ljungbox(series, lags=lags, model_df=np_, return_df=True)
             print(f"\nLjung-Box on {name} — {label}  (lags {lags})")
             print(result[["lb_stat", "lb_pvalue"]].to_string())
@@ -179,9 +183,9 @@ class GARCHDiagnostics:
             RuntimeError: If fit1 is not yet fitted.
         """
         fit1 = self._require_fit(self.gm.fit1, "fit1 (sGARCH)")
-        np1  = self.gm.np1
+        np1 = self.gm.np1
 
-        z  = fit1.std_resid.dropna().values
+        z = self._to_array(fit1.std_resid)
         nu = fit1.params.get("nu", fit1.params.get("shape", 4.0))
 
         # 1. ACF triple
@@ -221,13 +225,24 @@ class GARCHDiagnostics:
         x = np.linspace(-5, 5, 300)
 
         fig, ax = plt.subplots(figsize=(8, 5))
-        ax.hist(z, bins=100, density=True, color="steelblue",
-                alpha=0.5, label="Empirical", range=(-5, 5))
+        ax.hist(
+            z,
+            bins=100,
+            density=True,
+            color="steelblue",
+            alpha=0.5,
+            label="Empirical",
+            range=(-5, 5),
+        )
 
-        ax.plot(x, stats.t.pdf(x, df=nu),
-                color="red",  linewidth=2, label=f"Student-t (ν={nu:.2f})")
-        ax.plot(x, stats.norm.pdf(x),
-                color="blue", linewidth=2, label="Normal")
+        ax.plot(
+            x,
+            stats.t.pdf(x, df=nu),
+            color="red",
+            linewidth=2,
+            label=f"Student-t (ν={nu:.2f})",
+        )
+        ax.plot(x, stats.norm.pdf(x), color="blue", linewidth=2, label="Normal")
 
         ax.set_xlim(-5, 5)
         ax.set_ylim(0, 0.55)
@@ -259,10 +274,10 @@ class GARCHDiagnostics:
             nu: Degrees of freedom of the fitted Student-t distribution.
             save: Whether to save the figure to disk.
         """
-        n      = len(z)
-        probs  = np.arange(1, n + 1) / (n + 1)
-        z_th   = stats.t.ppf(probs, df=nu)
-        z_emp  = np.sort(z)
+        n = len(z)
+        probs = np.arange(1, n + 1) / (n + 1)
+        z_th = stats.t.ppf(probs, df=nu)
+        z_emp = np.sort(z)
 
         fig, ax = plt.subplots(figsize=(6, 6))
         ax.scatter(z_th, z_emp, s=4, alpha=0.5, color="steelblue")
@@ -300,11 +315,11 @@ class GARCHDiagnostics:
         Args:
             fit: Fitted sGARCH ARCHModelResult.
         """
-        z  = fit.std_resid.dropna().values
-        u  = fit.resid.dropna().values
-        z2 = z ** 2
+        z = self._to_array(fit.std_resid)
+        u = self._to_array(fit.resid)
+        z2 = z**2
 
-        ones  = np.ones(len(u))
+        ones = np.ones(len(u))
         i_neg = (u < 0).astype(float)
         u_neg = u * i_neg
         u_pos = u * (1 - i_neg)
@@ -312,26 +327,26 @@ class GARCHDiagnostics:
         results = []
 
         for name, regressor in [
-            ("Sign Bias",          i_neg),
+            ("Sign Bias", i_neg),
             ("Negative Sign Bias", u_neg),
             ("Positive Sign Bias", u_pos),
         ]:
-            X   = np.column_stack([ones, regressor])
+            X = np.column_stack([ones, regressor])
             res = OLS(z2, X).fit()
-            t   = res.tvalues[1]
-            pv  = res.pvalues[1]
+            t = res.tvalues[1]
+            pv = res.pvalues[1]
             results.append({"Test": name, "t-value": t, "p-value": pv})
 
         # joint F-test on all three regressors
-        X_joint  = np.column_stack([ones, i_neg, u_neg, u_pos])
+        X_joint = np.column_stack([ones, i_neg, u_neg, u_pos])
         res_joint = OLS(z2, X_joint).fit()
-        f_stat   = res_joint.fvalue
-        f_pv     = res_joint.f_pvalue
+        f_stat = res_joint.fvalue
+        f_pv = res_joint.f_pvalue
         results.append({"Test": "Joint Effect", "t-value": f_stat, "p-value": f_pv})
 
         print("\nSign Bias Test — sGARCH")
         print(pd.DataFrame(results).to_string(index=False))
-    
+
     def diagnostics_tgarch(self, save: bool = True) -> None:
         """Run the diagnostic suite for T-GARCH (fit5).
 
@@ -354,9 +369,9 @@ class GARCHDiagnostics:
             RuntimeError: If fit5 is not yet fitted.
         """
         fit5 = self._require_fit(self.gm.fit5, "fit5 (T-GARCH)")
-        np5  = self.gm.np5
+        np5 = self.gm.np5
 
-        z = fit5.std_resid.dropna().values
+        z = self._to_array(fit5.std_resid)
 
         # 1. Nyblom stability test — called once (R has it twice, artifact)
         self._nyblom_test(fit5)
@@ -406,55 +421,68 @@ class GARCHDiagnostics:
                 # compute score contributions numerically
                 # each row of scores is the gradient of the log-likelihood
                 # at observation t with respect to the parameter vector
-                resid   = fit.resid.dropna().values
-                sigma   = fit.conditional_volatility.values
-                n       = len(resid)
+                resid = self._to_array(fit.resid)
+                sigma = fit.conditional_volatility.values
+                n = len(resid)
                 nparams = len(fit.params)
 
                 # standardised score proxy: z_t * (d sigma / d theta)
                 # approximated by the outer product of standardised residuals
-                z       = resid / sigma
-                scores  = np.outer(z ** 2 - 1, np.ones(nparams))
+                z = resid / sigma
+                scores = np.outer(z**2 - 1, np.ones(nparams))
 
                 # cumulative sum of scores
-                cusum   = np.cumsum(scores, axis=0)
+                cusum = np.cumsum(scores, axis=0)
 
                 # information matrix approximation
-                V       = scores.T @ scores / n
+                V = scores.T @ scores / n
 
                 # individual Nyblom statistics
-                ind_stats = np.array([
-                    np.sum(cusum[:, j] ** 2) / (n ** 2 * V[j, j])
-                    if V[j, j] > 0 else np.nan
-                    for j in range(nparams)
-                ])
+                ind_stats = np.array(
+                    [
+                        np.sum(cusum[:, j] ** 2) / (n**2 * V[j, j])
+                        if V[j, j] > 0
+                        else np.nan
+                        for j in range(nparams)
+                    ]
+                )
 
                 # joint statistic (trace of matrix product)
                 try:
-                    V_inv  = np.linalg.pinv(V)
-                    joint  = np.trace(
-                        cusum.T @ cusum @ V_inv
-                    ) / n ** 2
+                    V_inv = np.linalg.pinv(V)
+                    joint = np.trace(cusum.T @ cusum @ V_inv) / n**2
                 except np.linalg.LinAlgError:
                     joint = np.nan
 
                 # print individual statistics
-                crit_ind  = {"10%": 0.353, "5%": 0.470, "1%": 0.748}
-                crit_joint = {"10%": 1.69,  "5%": 1.90,  "1%": 2.35}
+                crit_ind = {"10%": 0.353, "5%": 0.470, "1%": 0.748}
+                crit_joint = {"10%": 1.69, "5%": 1.90, "1%": 2.35}
 
                 rows = []
                 for j, name in enumerate(fit.params.index):
-                    rows.append({
-                        "Parameter": name,
-                        "Statistic": round(ind_stats[j], 4) if not np.isnan(ind_stats[j]) else np.nan,
-                        "> 10% crit (0.353)": "YES" if ind_stats[j] > crit_ind["10%"] else "no",
-                        "> 5% crit (0.470)":  "YES" if ind_stats[j] > crit_ind["5%"]  else "no",
-                    })
+                    rows.append(
+                        {
+                            "Parameter": name,
+                            "Statistic": (
+                                round(ind_stats[j], 4)
+                                if not np.isnan(ind_stats[j])
+                                else np.nan
+                            ),
+                            "> 10% crit (0.353)": (
+                                "YES" if ind_stats[j] > crit_ind["10%"] else "no"
+                            ),
+                            "> 5% crit (0.470)": (
+                                "YES" if ind_stats[j] > crit_ind["5%"] else "no"
+                            ),
+                        }
+                    )
 
                 print(pd.DataFrame(rows).to_string(index=False))
                 print(f"\nJoint statistic : {joint:.4f}")
-                print(f"Joint crit 10%  : {crit_joint['10%']}  "
-                      f"5%: {crit_joint['5%']}  1%: {crit_joint['1%']}")
+                print(
+                    f"Joint crit 10%  : {crit_joint['10%']}  "
+                    f"5%: {crit_joint['5%']}  1%: {crit_joint['1%']}"
+                )
 
                 if joint < crit_joint["10%"]:
                     print("Joint: PASS — parameters are stable at 10%")
@@ -481,9 +509,10 @@ class GARCHDiagnostics:
         Args:
             z: Standardised residuals from T-GARCH.
         """
-        from statsmodels.stats.diagnostic import bds as bds_test
 
-        x1  = np.log(np.abs(z))
+        from statsmodels.tsa.stattools import bds as bds_test
+
+        x1 = np.log(np.abs(z))
         eps = np.std(x1) * np.array([0.5, 1.0, 1.5, 2.0])
 
         print("\nBDS test on log(|z|) — T-GARCH")
@@ -491,15 +520,20 @@ class GARCHDiagnostics:
         for epsilon in eps:
             try:
                 stat, pval = bds_test(x1, max_dim=4, epsilon=float(epsilon))
-                for dim, s, p in zip([2, 3, 4],
-                                     np.asarray(stat),
-                                     np.asarray(pval)):
-                    rows.append({
-                        "dim":     dim,
-                        "epsilon": round(float(epsilon), 4),
-                        "stat":    round(float(s), 4),
-                        "p-value": round(float(p), 4),
-                    })
+                for dim, s, p in zip(
+                    [2, 3, 4],
+                    np.asarray(stat),
+                    np.asarray(pval),
+                    strict=False,
+                ):
+                    rows.append(
+                        {
+                            "dim": dim,
+                            "epsilon": round(float(epsilon), 4),
+                            "stat": round(float(s), 4),
+                            "p-value": round(float(p), 4),
+                        }
+                    )
             except Exception as exc:
                 print(f"  BDS failed for epsilon={epsilon:.4f}: {exc}")
 
@@ -532,51 +566,59 @@ class GARCHDiagnostics:
         self._require_fit(self.gm.fit5, "fit5 (T-GARCH)")
 
         sd = np.std(self.gm.yret)
-        u  = np.linspace(-3 * sd, 3 * sd, 400)
+        u = np.linspace(-3 * sd, 3 * sd, 400)
 
         # sGARCH parameters
-        p1     = self.gm.fit1.params
-        om1    = p1["omega"]
-        al1    = p1["alpha[1]"]
-        be1    = p1["beta[1]"]
+        p1 = self.gm.fit1.params
+        om1 = p1["omega"]
+        al1 = p1["alpha[1]"]
+        be1 = p1["beta[1]"]
         s2_unc = om1 / (1 - al1 - be1)
-        nic1   = om1 + al1 * u ** 2 + be1 * s2_unc
+        nic1 = om1 + al1 * u**2 + be1 * s2_unc
 
         # GJR-GARCH parameters
-        p2   = self.gm.fit2.params
-        om2  = p2["omega"]
-        al2  = p2["alpha[1]"]
-        ga2  = p2["gamma[1]"]
-        be2  = p2["beta[1]"]
+        p2 = self.gm.fit2.params
+        om2 = p2["omega"]
+        al2 = p2["alpha[1]"]
+        ga2 = p2["gamma[1]"]
+        be2 = p2["beta[1]"]
         s2_unc2 = om2 / (1 - al2 - ga2 / 2 - be2)
-        nic2 = om2 + al2 * u ** 2 + ga2 * u ** 2 * (u < 0).astype(float) + be2 * s2_unc2
+        nic2 = om2 + al2 * u**2 + ga2 * u**2 * (u < 0).astype(float) + be2 * s2_unc2
 
         # T-GARCH parameters — use fit5c converted form if available
         if self.gm.fit5c is not None:
             coef5 = self.gm.fit5c["coef"]
             names5 = self.gm.fit5c["matcoef"].index.tolist()
+
             def _get(name):
                 matches = [i for i, n in enumerate(names5) if name in n.lower()]
                 return coef5[matches[0]] if matches else 0.0
-            om5  = _get("omega")
-            al5  = _get("alpha")
-            ga5  = _get("gamma")
-            be5  = _get("beta")
-        else:
-            p5   = self.gm.fit5.params
-            om5  = p5.get("omega", 0.1)
-            al5  = p5.get("alpha[1]", 0.05)
-            ga5  = 0.0
-            be5  = p5.get("beta[1]", 0.88)
 
-        s_unc5 = om5 / (1 - al5 - ga5 / 2 - be5) if (1 - al5 - ga5/2 - be5) > 0 else np.std(self.gm.yret)
-        sig5   = om5 + al5 * np.abs(u) + ga5 * np.abs(u) * (u < 0).astype(float) + be5 * s_unc5
-        nic5   = sig5 ** 2
+            om5 = _get("omega")
+            al5 = _get("alpha")
+            ga5 = _get("gamma")
+            be5 = _get("beta")
+        else:
+            p5 = self.gm.fit5.params
+            om5 = p5.get("omega", 0.1)
+            al5 = p5.get("alpha[1]", 0.05)
+            ga5 = 0.0
+            be5 = p5.get("beta[1]", 0.88)
+
+        denom5 = 1 - al5 - ga5 / 2 - be5
+        s_unc5 = om5 / denom5 if denom5 > 0 else np.std(self.gm.yret)
+        sig5 = (
+            om5
+            + al5 * np.abs(u)
+            + ga5 * np.abs(u) * (u < 0).astype(float)
+            + be5 * s_unc5
+        )
+        nic5 = sig5**2
 
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot(u, nic1, color="black", linewidth=1.8, label="sGARCH")
-        ax.plot(u, nic2, color="red",   linewidth=1.8, label="GJR-GARCH")
-        ax.plot(u, nic5, color="blue",  linewidth=1.8, label="T-GARCH")
+        ax.plot(u, nic2, color="red", linewidth=1.8, label="GJR-GARCH")
+        ax.plot(u, nic5, color="blue", linewidth=1.8, label="T-GARCH")
         ax.set_xlabel("Past shock u(t-1)")
         ax.set_ylabel("Conditional variance")
         ax.set_title("News Impact Curve — sGARCH, GJR-GARCH, T-GARCH")
@@ -605,26 +647,26 @@ class GARCHDiagnostics:
         self._require_fit(self.gm.fit2, "fit2 (GJR-GARCH)")
 
         sd = np.std(self.gm.yret)
-        u  = np.linspace(-3 * sd, 3 * sd, 400)
+        u = np.linspace(-3 * sd, 3 * sd, 400)
 
-        p1     = self.gm.fit1.params
-        om1    = p1["omega"]
-        al1    = p1["alpha[1]"]
-        be1    = p1["beta[1]"]
+        p1 = self.gm.fit1.params
+        om1 = p1["omega"]
+        al1 = p1["alpha[1]"]
+        be1 = p1["beta[1]"]
         s2_unc = om1 / (1 - al1 - be1)
-        nic1   = om1 + al1 * u ** 2 + be1 * s2_unc
+        nic1 = om1 + al1 * u**2 + be1 * s2_unc
 
-        p2      = self.gm.fit2.params
-        om2     = p2["omega"]
-        al2     = p2["alpha[1]"]
-        ga2     = p2["gamma[1]"]
-        be2     = p2["beta[1]"]
+        p2 = self.gm.fit2.params
+        om2 = p2["omega"]
+        al2 = p2["alpha[1]"]
+        ga2 = p2["gamma[1]"]
+        be2 = p2["beta[1]"]
         s2_unc2 = om2 / (1 - al2 - ga2 / 2 - be2)
-        nic2    = om2 + al2 * u ** 2 + ga2 * u ** 2 * (u < 0).astype(float) + be2 * s2_unc2
+        nic2 = om2 + al2 * u**2 + ga2 * u**2 * (u < 0).astype(float) + be2 * s2_unc2
 
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot(u, nic1, color="black", linewidth=1.8, label="sGARCH")
-        ax.plot(u, nic2, color="red",   linewidth=1.8, label="GJR-GARCH")
+        ax.plot(u, nic2, color="red", linewidth=1.8, label="GJR-GARCH")
         ax.set_xlabel("Past shock u(t-1)")
         ax.set_ylabel("Conditional variance")
         ax.set_title("News Impact Curve — sGARCH vs GJR-GARCH")

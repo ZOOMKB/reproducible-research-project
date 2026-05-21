@@ -22,36 +22,36 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
-from arch.univariate import GARCH, EGARCH, ARX, StudentsT
+from arch.univariate import ARX, EGARCH, GARCH, StudentsT
 from arch.univariate.base import ARCHModelResult
-from statsmodels.graphics.tsaplots import plot_acf
 
 from src.config import OUTPUTS_DIR, PROCESSED_ATVI_PATH
 from src.data import ATVIDataProcessor
-from src.returns_analysis import compute_yret
 from src.garch_diagnostics import GARCHDiagnostics
+from src.returns_analysis import compute_yret
 
-# plot style 
-plt.rcParams.update({
-    "figure.dpi":        120,
-    "axes.grid":         True,
-    "grid.alpha":        0.3,
-    "axes.spines.top":   False,
-    "axes.spines.right": False,
-    "font.size":         11,
-})
+# plot style
+plt.rcParams.update(
+    {
+        "figure.dpi": 120,
+        "axes.grid": True,
+        "grid.alpha": 0.3,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "font.size": 11,
+    }
+)
 
 FIGURES_DIR = OUTPUTS_DIR / "figures"
 FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# 
+#
 @dataclass
 class GARCHModels:
     """Fit and compare GARCH-family volatility models on ATVI returns.
@@ -82,14 +82,14 @@ class GARCHModels:
     figures_dir: Path = field(default_factory=lambda: FIGURES_DIR)
 
     # fitted model objects — set to None until fit_* is called
-    fit1: Optional[ARCHModelResult] = field(default=None, init=False)
-    fit2: Optional[ARCHModelResult] = field(default=None, init=False)
-    fit3: Optional[ARCHModelResult] = field(default=None, init=False)
-    fit4: Optional[ARCHModelResult] = field(default=None, init=False)
-    fit5: Optional[ARCHModelResult] = field(default=None, init=False)
-    fit6: Optional[ARCHModelResult] = field(default=None, init=False)
-    fit4c: Optional[dict] = field(default=None, init=False)
-    fit5c: Optional[dict] = field(default=None, init=False)
+    fit1: ARCHModelResult | None = field(default=None, init=False)
+    fit2: ARCHModelResult | None = field(default=None, init=False)
+    fit3: ARCHModelResult | None = field(default=None, init=False)
+    fit4: ARCHModelResult | None = field(default=None, init=False)
+    fit5: ARCHModelResult | None = field(default=None, init=False)
+    fit6: ARCHModelResult | None = field(default=None, init=False)
+    fit4c: dict | None = field(default=None, init=False)
+    fit5c: dict | None = field(default=None, init=False)
 
     # parameter counts — set when each model is fitted
     np1: int = field(default=6, init=False)
@@ -98,12 +98,10 @@ class GARCHModels:
     np5: int = field(default=7, init=False)
     np6: int = field(default=5, init=False)
 
-    # construction helpers 
+    # construction helpers
 
     @classmethod
-    def from_processed_csv(
-        cls, path: Path = PROCESSED_ATVI_PATH
-    ) -> "GARCHModels":
+    def from_processed_csv(cls, path: Path = PROCESSED_ATVI_PATH) -> GARCHModels:
         """Create a GARCHModels instance from the processed ATVI dataset.
 
         Args:
@@ -117,7 +115,7 @@ class GARCHModels:
         return cls(yret=yret)
 
     @classmethod
-    def from_raw_processor(cls) -> "GARCHModels":
+    def from_raw_processor(cls) -> GARCHModels:
         """Create a GARCHModels instance by processing raw ATVI data.
 
         Returns:
@@ -160,10 +158,10 @@ class GARCHModels:
 
         ic = pd.Series(
             {
-                "Akaike":        result.aic,
-                "Bayes":         result.bic,
-                "Shibata":       shibata,
-                "Hannan-Quinn":  hq,
+                "Akaike": result.aic,
+                "Bayes": result.bic,
+                "Shibata": shibata,
+                "Hannan-Quinn": hq,
             },
             name="value",
         )
@@ -171,9 +169,7 @@ class GARCHModels:
         print(ic.to_string())
 
     @staticmethod
-    def _print_coef_tables(
-        result: ARCHModelResult, label: str
-    ) -> None:
+    def _print_coef_tables(result: ARCHModelResult, label: str) -> None:
         """Print standard and robust coefficient tables.
 
         Args:
@@ -182,10 +178,10 @@ class GARCHModels:
         """
         table = pd.DataFrame(
             {
-                "Estimate":   result.params,
+                "Estimate": result.params,
                 "Std. Error": result.std_err,
-                "t value":    result.tvalues,
-                "Pr(>|t|)":   result.pvalues,
+                "t value": result.tvalues,
+                "Pr(>|t|)": result.pvalues,
             }
         )
         print(f"\nCoefficient table — {label}")
@@ -201,17 +197,17 @@ class GARCHModels:
 
         robust_table = pd.DataFrame(
             {
-                "Estimate":   robust.params,
+                "Estimate": robust.params,
                 "Std. Error": robust.std_err,
-                "t value":    robust.tvalues,
-                "Pr(>|t|)":   robust.pvalues,
+                "t value": robust.tvalues,
+                "Pr(>|t|)": robust.pvalues,
             }
         )
         print(f"\nRobust coefficient table — {label}")
         print(robust_table.to_string())
 
-    # model fitting 
-    
+    # model fitting
+
     def fit_sgarch(self) -> ARCHModelResult:
         """Fit sGARCH(1,1) + ARMA(1,0) + Student-t errors.
 
@@ -287,14 +283,13 @@ class GARCHModels:
                 'matcoef'        DataFrame with standard coef table
                 'robust_matcoef' DataFrame with robust coef table
         """
-        est   = fit.params.values.copy()
+        est = fit.params.values.copy()
         names = fit.params.index.tolist()
 
         # covariance matrices — standard and robust
-        vcov   = fit.param_cov.values
+        vcov = fit.param_cov.values
         robust = fit.model.fit(
-            disp="off", cov_type="robust",
-            starting_values=fit.params.values
+            disp="off", cov_type="robust", starting_values=fit.params.values
         )
         vcov_r = robust.param_cov.values
 
@@ -305,18 +300,21 @@ class GARCHModels:
         try:
             inda = next(i for i, n in enumerate(names) if "alpha" in n.lower())
         except StopIteration:
-            raise ValueError(f"Could not find alpha parameter in: {names}")
+            raise ValueError(f"Could not find alpha parameter in: {names}") from None
 
         try:
             inde = next(
-                i for i, n in enumerate(names)
+                i
+                for i, n in enumerate(names)
                 if "eta" in n.lower() or "gamma" in n.lower()
             )
         except StopIteration:
-            raise ValueError(f"Could not find eta/gamma parameter in: {names}")
+            raise ValueError(
+                f"Could not find eta/gamma parameter in: {names}"
+            ) from None
 
         alpha = est[inda]
-        eta1  = est[inde]
+        eta1 = est[inde]
 
         # parameter transformation
         if submodel == "GJRGARCH":
@@ -326,7 +324,9 @@ class GARCHModels:
             alpha_s = alpha * (1 - eta1)
             gamma_s = 2 * alpha * eta1
         else:
-            raise ValueError(f"submodel must be 'GJRGARCH' or 'TGARCH', got '{submodel}'")
+            raise ValueError(
+                f"submodel must be 'GJRGARCH' or 'TGARCH', got '{submodel}'"
+            ) from None
 
         # build delta-method transformation matrix D
         D = np.eye(np_)
@@ -342,10 +342,10 @@ class GARCHModels:
             D[inde, inde] = 2 * alpha
 
         # propagate covariance through the transformation
-        new_vcov   = D @ vcov   @ D.T
+        new_vcov = D @ vcov @ D.T
         new_vcov_r = D @ vcov_r @ D.T
 
-        se   = np.sqrt(np.abs(np.diag(new_vcov)))
+        se = np.sqrt(np.abs(np.diag(new_vcov)))
         se_r = np.sqrt(np.abs(np.diag(new_vcov_r)))
 
         # update parameter vector with converted values
@@ -357,10 +357,10 @@ class GARCHModels:
         out_names[inde] = "gamma1"
 
         # t-stats and p-values using standard normal (matches R output)
-        t_vals  = est / se
-        p_vals  = 2 * (1 - stats.norm.cdf(np.abs(t_vals)))
-        t_rob   = est / se_r
-        p_rob   = 2 * (1 - stats.norm.cdf(np.abs(t_rob)))
+        t_vals = est / se
+        p_vals = 2 * (1 - stats.norm.cdf(np.abs(t_vals)))
+        t_rob = est / se_r
+        p_rob = 2 * (1 - stats.norm.cdf(np.abs(t_rob)))
 
         cols = ["Estimate", "Std. Error", "t value", "Pr(>|t|)"]
 
@@ -376,10 +376,10 @@ class GARCHModels:
         )
 
         return {
-            "coef":           est,
-            "se":             se,
-            "robust_se":      se_r,
-            "matcoef":        matcoef,
+            "coef": est,
+            "se": se,
+            "robust_se": se_r,
+            "matcoef": matcoef,
             "robust_matcoef": robust_matcoef,
         }
 
@@ -483,7 +483,9 @@ class GARCHModels:
             Fitted ARCHModelResult stored as self.fit3.
         """
         model = ARX(self.yret, lags=1, constant=True)
-        model.volatility = GARCH(p=1, o=1, q=1, targeting=True)
+        vol = GARCH(p=1, o=1, q=1)
+        vol.variance_targeting = True
+        model.volatility = vol
         model.distribution = StudentsT()
         self.fit3 = model.fit(disp="off", cov_type="robust")
         self.np3 = len(self.fit3.params)
@@ -542,10 +544,10 @@ class GARCHModels:
         # verify alpha + beta is close to 1
         params = self.fit6.params
         alpha_name = [n for n in params.index if "alpha" in n.lower()]
-        beta_name  = [n for n in params.index if "beta"  in n.lower()]
+        beta_name = [n for n in params.index if "beta" in n.lower()]
         if alpha_name and beta_name:
             alpha_val = params[alpha_name[0]]
-            beta_val  = params[beta_name[0]]
+            beta_val = params[beta_name[0]]
             print(f"\nalpha1 + beta1 = {alpha_val + beta_val:.6f} (expected ~1.0)")
 
         return self.fit6
@@ -564,9 +566,13 @@ class GARCHModels:
             RuntimeError: If any of fit1, fit2, fit5, fit6 is not yet fitted.
         """
         missing = [
-            name for name, fit in
-            [("fit1", self.fit1), ("fit2", self.fit2),
-            ("fit5", self.fit5), ("fit6", self.fit6)]
+            name
+            for name, fit in [
+                ("fit1", self.fit1),
+                ("fit2", self.fit2),
+                ("fit5", self.fit5),
+                ("fit6", self.fit6),
+            ]
             if fit is None
         ]
         if missing:
@@ -576,17 +582,13 @@ class GARCHModels:
             )
 
         rows = [
-            {"Model": "sGARCH(1,1)",    "AIC": self.fit1.aic, "BIC": self.fit1.bic},
+            {"Model": "sGARCH(1,1)", "AIC": self.fit1.aic, "BIC": self.fit1.bic},
             {"Model": "GJR-GARCH(1,1)", "AIC": self.fit2.aic, "BIC": self.fit2.bic},
-            {"Model": "T-GARCH(1,1)",   "AIC": self.fit5.aic, "BIC": self.fit5.bic},
-            {"Model": "IGARCH(1,1)",    "AIC": self.fit6.aic, "BIC": self.fit6.bic},
+            {"Model": "T-GARCH(1,1)", "AIC": self.fit5.aic, "BIC": self.fit5.bic},
+            {"Model": "IGARCH(1,1)", "AIC": self.fit6.aic, "BIC": self.fit6.bic},
         ]
 
-        table = (
-            pd.DataFrame(rows)
-            .sort_values("AIC")
-            .reset_index(drop=True)
-        )
+        table = pd.DataFrame(rows).sort_values("AIC").reset_index(drop=True)
 
         print("\nModel comparison — AIC and BIC")
         print(table.to_string(index=False))
@@ -594,7 +596,7 @@ class GARCHModels:
 
         return table
 
-    # diagnostic stubs (filled in garch_diagnostics.py) 
+    # diagnostic stubs (filled in garch_diagnostics.py)
 
     def diagnostics_sgarch(self, save: bool = True) -> None:
         """Run full sGARCH diagnostic suite via GARCHDiagnostics.
@@ -656,7 +658,8 @@ class GARCHModels:
         GARCHDiagnostics(gm=self).news_impact_curve_two(save=save)
 
 
-# module-level convenience function 
+# module-level convenience function
+
 
 def run_garch_models(save_figures: bool = True) -> GARCHModels:
     """Run the full GARCH fitting sequence and return the fitted object.
@@ -685,7 +688,8 @@ def run_garch_models(save_figures: bool = True) -> GARCHModels:
     return gm
 
 
-#  standalone runner 
+#  standalone runner
+
 
 def main() -> None:
     """Run the full GARCH analysis from the command line."""
