@@ -46,6 +46,17 @@ make report     # Render the Quarto HTML report
 make reproduce  # Run lint, tests, docs, and report rendering
 ```
 
+Docker checks are available through Makefile wrappers:
+
+```bash
+make docker-setup      # Build and initialize the Docker dev environment
+make docker-lint       # Run Ruff checks in Docker dev
+make docker-test       # Run pytest in Docker dev
+make docker-report     # Render the Quarto report in Docker dev
+make docker-reproduce  # Run make reproduce in Docker dev
+make docker-check      # Run final Docker checks before a pull request
+```
+
 Regenerate the processed ATVI dataset only when intentionally updating data:
 
 ```bash
@@ -64,26 +75,22 @@ The project has two Docker Compose services:
 Initial Docker setup:
 
 ```bash
-docker compose build
-docker compose run --rm dev uv sync --frozen
-docker compose run --rm dev make reproduce
+make docker-setup
 ```
 
 Daily Docker checks:
 
 ```bash
-docker compose run --rm dev make lint
-docker compose run --rm dev make test
-docker compose run --rm dev make report
+make docker-lint
+make docker-test
+make docker-report
 ```
 
 Before opening a pull request for code, data, report, dependency, or pipeline
 changes:
 
 ```bash
-docker compose run --rm dev make reproduce
-docker compose build
-docker compose run --rm analysis
+make docker-check
 ```
 
 Rendered outputs are written to `outputs/`.
@@ -106,17 +113,15 @@ Edit files locally in VS Code.
 Run quick checks while working:
 
 ```bash
-docker compose run --rm dev make lint
-docker compose run --rm dev make test
+make docker-lint
+make docker-test
 ```
 
 If the task changes reports, plots, data processing, dependencies, Docker, or
 pipeline logic, run final Docker checks before committing:
 
 ```bash
-docker compose run --rm dev make reproduce
-docker compose build
-docker compose run --rm analysis
+make docker-check
 ```
 
 Then inspect and stage only the files related to your task:
