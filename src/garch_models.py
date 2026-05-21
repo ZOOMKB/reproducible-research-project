@@ -31,11 +31,11 @@ import scipy.stats as stats
 from arch.univariate import GARCH, EGARCH, ARX, StudentsT
 from arch.univariate.base import ARCHModelResult
 from statsmodels.graphics.tsaplots import plot_acf
-from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch, bds
 
 from src.config import OUTPUTS_DIR, PROCESSED_ATVI_PATH
 from src.data import ATVIDataProcessor
 from src.returns_analysis import compute_yret
+from src.garch_diagnostics import GARCHDiagnostics
 
 # plot style 
 plt.rcParams.update({
@@ -596,21 +596,64 @@ class GARCHModels:
 
     # diagnostic stubs (filled in garch_diagnostics.py) 
 
-    def diagnostics_sgarch(self) -> None:
-        """Full diagnostic suite for sGARCH: ACF, LB, ARCH, hist, QQ, sign bias."""
-        raise NotImplementedError
+    def diagnostics_sgarch(self, save: bool = True) -> None:
+        """Run full sGARCH diagnostic suite via GARCHDiagnostics.
 
-    def news_impact_curve_three(self) -> None:
-        """NIC for sGARCH, GJR, T-GARCH on one plot."""
-        raise NotImplementedError
+        Delegates to GARCHDiagnostics.diagnostics_sgarch(). Requires
+        fit1 to be fitted first. Runs ACF, Ljung-Box, ARCH test,
+        histogram with Student-t overlay, QQ plot, and sign bias test.
 
-    def diagnostics_tgarch(self) -> None:
-        """T-GARCH diagnostics: Nyblom, ACF, LB, ARCH, BDS."""
-        raise NotImplementedError
+        Args:
+            save: Whether to save figures to disk.
 
-    def news_impact_curve_two(self) -> None:
-        """NIC for sGARCH and GJR only."""
-        raise NotImplementedError
+        Raises:
+            RuntimeError: If fit1 is not yet fitted.
+        """
+        GARCHDiagnostics(gm=self).diagnostics_sgarch(save=save)
+
+    def news_impact_curve_three(self, save: bool = True) -> None:
+        """Plot NIC for sGARCH, GJR-GARCH, and T-GARCH via GARCHDiagnostics.
+
+        Requires fit1, fit2, and fit5 to be fitted first. Appears in
+        the analysis immediately after fitting T-GARCH and before the
+        T-GARCH diagnostic ACF plots.
+
+        Args:
+            save: Whether to save the figure to disk.
+
+        Raises:
+            RuntimeError: If fit1, fit2, or fit5 is not yet fitted.
+        """
+        GARCHDiagnostics(gm=self).news_impact_curve_three(save=save)
+
+    def diagnostics_tgarch(self, save: bool = True) -> None:
+        """Run T-GARCH diagnostic suite via GARCHDiagnostics.
+
+        Delegates to GARCHDiagnostics.diagnostics_tgarch(). Requires
+        fit5 to be fitted first. Runs Nyblom, ACF, Ljung-Box, ARCH
+        test, and BDS on log(|z|). No histogram, QQ, or sign bias.
+
+        Args:
+            save: Whether to save figures to disk.
+
+        Raises:
+            RuntimeError: If fit5 is not yet fitted.
+        """
+        GARCHDiagnostics(gm=self).diagnostics_tgarch(save=save)
+
+    def news_impact_curve_two(self, save: bool = True) -> None:
+        """Plot NIC for sGARCH and GJR-GARCH only via GARCHDiagnostics.
+
+        Requires fit1 and fit2 to be fitted first. Appears after all
+        T-GARCH diagnostics in the NIC and Variance Targeting subsection.
+
+        Args:
+            save: Whether to save the figure to disk.
+
+        Raises:
+            RuntimeError: If fit1 or fit2 is not yet fitted.
+        """
+        GARCHDiagnostics(gm=self).news_impact_curve_two(save=save)
 
 
 # module-level convenience function 
