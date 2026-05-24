@@ -7,14 +7,34 @@ Usage:
     measures = evaluate_volatility_forecast(
         realized=gk_vol_window, sigma=table["sigma"]
     )
+
+The module self-tests are run from the project root with:
+    uv run python -m src.evaluation
 """
 
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
 import statsmodels.api as sm
+
+from src.config import OUTPUTS_DIR
+
+plt.rcParams.update(
+    {
+        "figure.dpi": 120,
+        "axes.grid": True,
+        "grid.alpha": 0.3,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "font.size": 11,
+    }
+)
+
+FIGURES_DIR = OUTPUTS_DIR / "figures"
+FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _as_array(values) -> np.ndarray:
@@ -206,6 +226,63 @@ def prediction_bands(mean, sigma, alpha: float = 0.05) -> pd.DataFrame:
     )
 
 
+def plot_mincer_zarnowitz(
+    y_true,
+    y_pred,
+    cov_type: str = "HAC",
+    title: str = "Mincer-Zarnowitz forecast optimality",
+    filename: str | None = None,
+    save: bool = True,
+) -> plt.Figure:
+
+    result = mincer_zarnowitz(y_true, y_pred, cov_type=cov_type)
+    coef = result["coef_table"]
+    intercept = coef.loc["intercept", "estimate"]
+    slope = coef.loc["slope", "estimate"]
+
+    actual = _as_array(y_true)
+    pred = _as_array(y_pred)
+
+    lo = float(min(actual.min(), pred.min()))
+    hi = float(max(actual.max(), pred.max()))
+    grid = np.linspace(lo, hi, 100)
+
+    fig, ax = plt.subplots(figsize=(7, 7))
+    ax.scatter(pred, actual, s=14, alpha=0.6, label="Observation")
+    ax.plot(
+        grid,
+        intercept + slope * grid,
+        linewidth=1.6,
+        label=f"Fitted line (slope {slope:.2f})",
+    )
+    ax.plot(
+        grid,
+        grid,
+        linewidth=1.2,
+        linestyle="--",
+        color="black",
+        label="Optimal line (slope 1)",
+    )
+
+    ax.set_title(title)
+    ax.set_xlabel("Forecast")
+    ax.set_ylabel("Observed")
+    ax.legend(loc="upper left", fontsize=9)
+    plt.tight_layout()
+
+    if save:
+        if filename is None:
+            slug = title.lower().replace(" ", "_")
+            filename = f"{slug}.png"
+        FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+        path = FIGURES_DIR / filename
+        fig.savefig(path, bbox_inches="tight", dpi=150)
+
+    plt.show()
+    plt.close()
+    return fig
+
+
 def _check(condition: bool, label: str) -> None:
 
     if not condition:
@@ -314,6 +391,13 @@ def _self_test() -> None:
         _check(False, "length mismatch raises ValueError")
     except ValueError:
         _check(True, "length mismatch raises ValueError")
+
+    print("plot_mincer_zarnowitz")
+    import matplotlib
+
+    matplotlib.use("Agg")
+    fig = plot_mincer_zarnowitz(line, line, save=False)
+    _check(fig is not None, "plot returns a figure object")
 
     print("all evaluation self-tests passed")
 

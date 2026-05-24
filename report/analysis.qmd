@@ -546,15 +546,14 @@ sample, and yields i.i.d. standardised residuals. The fitted T-GARCH
 model will be used in Section 6 for volatility forecasting evaluation
 and in Section 7 for the ex-ante 10-day forecast.
 
-# Forecast Evaluation
+# Forecasting
 
-
-With the GARCH-family models fitted, we now use them to produce volatility
-forecasts. The fitted models are passed to the `GARCHForecaster`, which
-generates fixed-horizon ex-post forecasts: for a sequence of forecast
-origins inside the observed sample, the one-step-ahead conditional mean and
-standard deviation are recorded and paired with the return actually
-observed at each target date.
+The fitted GARCH-family models are now used to produce volatility
+forecasts. Each model is passed to the `GARCHForecaster`, which generates
+fixed-horizon ex-post forecasts: for a sequence of forecast origins inside
+the observed sample, the one-step-ahead conditional mean and standard
+deviation are recorded and paired with the return actually observed at
+each target date.
 
 ```{python}
 #| label: forecast-run
@@ -602,8 +601,6 @@ fixed — the behaviour expected from a working GARCH-type model.
 #| label: tbl-forecast-sigma-compare
 #| tbl-cap: "Mean forecast volatility over the evaluation window for each fitted model."
 
-import pandas as pd
-
 pd.DataFrame(
     {
         "model": list(forecasts.keys()),
@@ -613,11 +610,15 @@ pd.DataFrame(
     }
 )
 ```
-The ex-post forecasts produced above are now assessed quantitatively. For
-each model the one-step-ahead conditional mean is compared against the
-observed return, and the conditional volatility forecast is compared
-against a realized-volatility proxy. Two models are then compared directly
-with a test of equal predictive accuracy.
+
+# Forecast Evaluation
+
+The ex-post forecasts are now assessed quantitatively. For each model the
+one-step-ahead conditional mean is compared against the observed return,
+and the conditional volatility forecast is compared against a
+realized-volatility proxy. Two models are then compared directly with a
+test of equal predictive accuracy, and the preferred model is checked for
+forecast optimality.
 
 ```{python}
 #| label: evaluation-run
@@ -625,20 +626,23 @@ with a test of equal predictive accuracy.
 #| output: false
 
 import numpy as np
-import pandas as pd
 
 from src.evaluation import (
     diebold_mariano,
     evaluate_return_forecast,
     evaluate_volatility_forecast,
     mincer_zarnowitz,
+    plot_mincer_zarnowitz,
 )
 
 tgarch_fc = forecasts["T-GARCH(1,1)"]
 sgarch_fc = forecasts["sGARCH(1,1)"]
 
 realized_proxy = np.abs(tgarch_fc["actual"].to_numpy())
+evaluation_figures_dir = forecast_figures_dir
 ```
+
+## Forecast error measures
 
 ```{python}
 #| label: tbl-return-error-measures
@@ -678,6 +682,8 @@ A GARCH model forecasts a conditional standard deviation that is never
 directly observed, so the volatility forecast is assessed against the
 absolute return as a realized-volatility proxy.
 
+## Comparing models
+
 ```{python}
 #| label: tbl-diebold-mariano
 #| tbl-cap: "Diebold-Mariano test comparing the T-GARCH and sGARCH return forecasts. A negative statistic favours the first model; the Harvey-Leybourne-Newbold small-sample correction is applied."
@@ -692,6 +698,8 @@ dm_result
 The Diebold-Mariano test assesses whether the difference in forecast
 accuracy between the two models is statistically significant rather than
 an artefact of the particular evaluation window.
+
+## Forecast optimality
 
 ```{python}
 #| label: tbl-mincer-zarnowitz
@@ -712,6 +720,27 @@ pd.DataFrame(
         "p_value": [mz_result["f_pvalue"]],
     }
 )
+```
+
+```{python}
+#| label: fig-mincer-zarnowitz
+#| echo: false
+#| output: false
+
+plot_mincer_zarnowitz(
+    realized_proxy,
+    tgarch_fc["sigma"].to_numpy(),
+    title="T-GARCH Mincer-Zarnowitz optimality",
+    save=True,
+)
+```
+
+```{python}
+#| label: fig-mz-display
+#| echo: false
+#| fig-cap: "Mincer-Zarnowitz scatter for the T-GARCH volatility forecast. The fitted regression line is compared against the 45-degree optimality line; a gap between the two indicates departure from forecast optimality."
+
+display(Image(filename=str(evaluation_figures_dir / "t-garch_mincer-zarnowitz_optimality.png")))
 ```
 
 The Mincer-Zarnowitz regression tests forecast optimality directly: an
