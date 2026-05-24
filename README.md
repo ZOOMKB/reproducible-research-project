@@ -8,30 +8,50 @@ methodology. The workflow separates reusable Python modules, automated checks,
 HTML documentation, a Quarto report, and a Docker environment that can reproduce
 the report from a clean container.
 
+## Group Members
+
+- Sati Ter-Harutyunyan
+- Anna Perekhodko
+- Markiian Strohyi
+- Mykola Bolokh
+
+## Project Structure
+
+```text
+data/raw/              Source ATVI dataset
+data/processed/        Processed dataset used by the analysis
+src/                   Python package with data, EDA, ARMA, GARCH, forecasting,
+                       and evaluation modules
+tests/                 Lightweight automated tests
+report/                Quarto report source
+docs/                  Sphinx documentation source
+outputs/               Generated reports and figures
+```
+
 ## Reproduce From Docker Hub
 
 The final Docker image is intended to be pulled directly from Docker Hub during
 the presentation. The instructor does not need a local Python, uv, Quarto, or R
 installation.
 
-Replace the image name below with the final public Docker Hub image:
+The final public image will be published as:
 
 ```bash
-docker pull <dockerhub-username>/reproducible-research-project:latest
+docker pull mykolanocap/reproducible-research-project:latest
 mkdir -p outputs
 docker run --rm \
   -v "$(pwd)/outputs:/app/outputs" \
-  <dockerhub-username>/reproducible-research-project:latest
+  mykolanocap/reproducible-research-project:latest
 ```
 
 On Windows PowerShell, use:
 
 ```powershell
-docker pull <dockerhub-username>/reproducible-research-project:latest
+docker pull mykolanocap/reproducible-research-project:latest
 mkdir outputs
 docker run --rm `
   -v "${PWD}/outputs:/app/outputs" `
-  <dockerhub-username>/reproducible-research-project:latest
+  mykolanocap/reproducible-research-project:latest
 ```
 
 The rendered report is written to:
@@ -57,19 +77,6 @@ lint -> tests -> Sphinx documentation -> Quarto report
 The Quarto report is the main presentation artifact. It imports the Python
 modules in `src/`, regenerates figures and tables, and writes a self-contained
 HTML report to `outputs/report/analysis.html`.
-
-## Project Structure
-
-```text
-data/raw/              Source ATVI dataset
-data/processed/        Processed dataset used by the analysis
-src/                   Python package with data, EDA, ARMA, GARCH, forecasting,
-                       and evaluation modules
-tests/                 Lightweight automated tests
-report/                Quarto report source
-docs/                  Sphinx documentation source
-outputs/               Generated reports and figures
-```
 
 ## Local Reproduction
 
@@ -156,18 +163,18 @@ multi-platform image:
 ```bash
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t <dockerhub-username>/reproducible-research-project:latest \
+  -t mykolanocap/reproducible-research-project:latest \
   --push .
 ```
 
 Then verify the pushed image:
 
 ```bash
-docker pull <dockerhub-username>/reproducible-research-project:latest
+docker pull mykolanocap/reproducible-research-project:latest
 mkdir -p outputs
 docker run --rm \
   -v "$(pwd)/outputs:/app/outputs" \
-  <dockerhub-username>/reproducible-research-project:latest
+  mykolanocap/reproducible-research-project:latest
 ```
 
 ## Collaboration
@@ -189,10 +196,3 @@ make docker-check
 ```
 
 Each pull request should describe what changed and how it was verified.
-
-## Group Members
-
-- Sati Ter-Harutyunyan
-- Anna Perekhodko
-- Markiian Strohyi
-- Mykola Bolokh
