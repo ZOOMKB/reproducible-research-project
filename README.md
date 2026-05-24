@@ -3,58 +3,101 @@
 This repository is a reproducible Python rewrite of the original R project
 [Financial Time Series Analysis and Forecasting GARCH models](https://github.com/DavidAlexanderMoe/Financial-Time-Series-Analysis-and-Forecasting-GARCH-models).
 
-## Group Members
+The project focuses on reproducibility rather than improving the econometric
+methodology. The workflow separates reusable Python modules, automated checks,
+HTML documentation, a Quarto report, and a Docker environment that can reproduce
+the report from a clean container.
 
-- Sati Ter-Harutyunyan
-- Anna Perekhodko
-- Markiian Strohyi
-- Mykola Bolokh
+## Reproduce From Docker Hub
+
+The final Docker image is intended to be pulled directly from Docker Hub during
+the presentation. The instructor does not need a local Python, uv, Quarto, or R
+installation.
+
+Replace the image name below with the final public Docker Hub image:
+
+```bash
+docker pull <dockerhub-username>/reproducible-research-project:latest
+mkdir -p outputs
+docker run --rm \
+  -v "$(pwd)/outputs:/app/outputs" \
+  <dockerhub-username>/reproducible-research-project:latest
+```
+
+On Windows PowerShell, use:
+
+```powershell
+docker pull <dockerhub-username>/reproducible-research-project:latest
+mkdir outputs
+docker run --rm `
+  -v "${PWD}/outputs:/app/outputs" `
+  <dockerhub-username>/reproducible-research-project:latest
+```
+
+The rendered report is written to:
+
+```text
+outputs/report/analysis.html
+```
+
+## What The Workflow Runs
+
+The container runs:
+
+```bash
+make reproduce
+```
+
+This command executes the full reproducibility workflow:
+
+```text
+lint -> tests -> Sphinx documentation -> Quarto report
+```
+
+The Quarto report is the main presentation artifact. It imports the Python
+modules in `src/`, regenerates figures and tables, and writes a self-contained
+HTML report to `outputs/report/analysis.html`.
 
 ## Project Structure
 
 ```text
-data/raw/              Source dataset used by the analysis
-data/processed/        Generated intermediate data
-src/                   Python modules for the reproducible workflow
-tests/                 Automated tests
-report/                Quarto report
-docs/                  Sphinx documentation
-outputs/               Generated reports, plots, and other outputs
+data/raw/              Source ATVI dataset
+data/processed/        Processed dataset used by the analysis
+src/                   Python package with data, EDA, ARMA, GARCH, forecasting,
+                       and evaluation modules
+tests/                 Lightweight automated tests
+report/                Quarto report source
+docs/                  Sphinx documentation source
+outputs/               Generated reports and figures
 ```
 
-## Local Setup
+## Local Reproduction
 
-Install dependencies with uv:
+For local development without Docker, install dependencies with uv:
 
 ```bash
 uv sync
 ```
 
-Quarto is required for rendering the report. On macOS it can be installed with:
+Quarto is required for local report rendering. On macOS:
 
 ```bash
 brew install --cask quarto
 ```
 
-## Common Commands
+Run the full local workflow:
+
+```bash
+make reproduce
+```
+
+Useful local commands:
 
 ```bash
 make lint       # Run Ruff lint and format checks
 make test       # Run pytest
 make docs       # Build Sphinx HTML documentation
 make report     # Render the Quarto HTML report
-make reproduce  # Run lint, tests, docs, and report rendering
-```
-
-Docker checks are available through Makefile wrappers:
-
-```bash
-make docker-setup      # Build and initialize the Docker dev environment
-make docker-lint       # Run Ruff checks in Docker dev
-make docker-test       # Run pytest in Docker dev
-make docker-report     # Render the Quarto report in Docker dev
-make docker-reproduce  # Run make reproduce in Docker dev
-make docker-check      # Run final Docker checks before a pull request
 ```
 
 Regenerate the processed ATVI dataset only when intentionally updating data:
@@ -63,14 +106,13 @@ Regenerate the processed ATVI dataset only when intentionally updating data:
 uv run python -m src.data
 ```
 
-## Docker
+## Docker Development
 
-The project has two Docker Compose services:
+The repository includes two Docker Compose services:
 
-- `dev` mounts your local project files into the container and is intended for
-  day-to-day checks while developing.
-- `analysis` uses the code copied into the Docker image and is intended as the
-  final reproducibility runner before a pull request or presentation.
+- `dev`: mounts the local project into the container for development checks.
+- `analysis`: runs the code copied into the built image, matching the final
+  reproducibility check more closely.
 
 Initial Docker setup:
 
@@ -86,21 +128,52 @@ make docker-test
 make docker-report
 ```
 
-Before opening a pull request for code, data, report, dependency, or pipeline
-changes:
+Final check before a pull request or release:
 
 ```bash
 make docker-check
 ```
 
-Rendered outputs are written to `outputs/`.
+## Documentation
 
-## Collaboration Workflow
+Sphinx API documentation can be generated with:
 
-All work should be done on feature branches and merged into `main` through pull
-requests. Do not push directly to `main`.
+```bash
+make docs
+```
 
-Recommended workflow:
+The generated documentation is written to:
+
+```text
+docs/_build/html/index.html
+```
+
+## Build And Push Final Image
+
+After the final pull request is merged into `main`, build and push a public
+multi-platform image:
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t <dockerhub-username>/reproducible-research-project:latest \
+  --push .
+```
+
+Then verify the pushed image:
+
+```bash
+docker pull <dockerhub-username>/reproducible-research-project:latest
+mkdir -p outputs
+docker run --rm \
+  -v "$(pwd)/outputs:/app/outputs" \
+  <dockerhub-username>/reproducible-research-project:latest
+```
+
+## Collaboration
+
+All project work was developed through feature branches and pull requests. For
+future changes, start from an up-to-date `main`:
 
 ```bash
 git checkout main
@@ -108,47 +181,18 @@ git pull --ff-only
 git checkout -b feature/short-description
 ```
 
-Edit files locally in VS Code.
-
-Run quick checks while working:
-
-```bash
-make docker-lint
-make docker-test
-```
-
-If the task changes reports, plots, data processing, dependencies, Docker, or
-pipeline logic, run final Docker checks before committing:
+Before opening a pull request for code, data, report, dependency, Docker, or
+pipeline changes, run:
 
 ```bash
 make docker-check
 ```
 
-Then inspect and stage only the files related to your task:
+Each pull request should describe what changed and how it was verified.
 
-```bash
-git status
-git diff
-git add src/
-git add tests/
-git add report/analysis.qmd
-```
+## Group Members
 
-Commit with a short subject and a wrapped body:
-
-```bash
-git commit \
-  -m "feat: add diagnostics" \
-  -m "Add plotting utilities for model volatility diagnostics." \
-  -m "Save figures to outputs/figures for reuse in the Quarto report."
-```
-
-Check the branch and push:
-
-```bash
-git status --short --branch
-git log --oneline origin/main..HEAD
-git push -u origin feature/short-description
-```
-
-Each pull request should explain what changed and how it was verified.
+- Sati Ter-Harutyunyan
+- Anna Perekhodko
+- Markiian Strohyi
+- Mykola Bolokh
