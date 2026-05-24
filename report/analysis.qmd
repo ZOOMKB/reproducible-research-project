@@ -561,7 +561,7 @@ observed at each target date.
 #| echo: false
 #| output: false
 
-from src.forecasting import GARCHForecaster, run_forecasting
+from src.garch_predict import GARCHForecaster, run_forecasting
 
 forecasts = run_forecasting(gm, horizon=1, n_expost=100, verbose=False)
 
