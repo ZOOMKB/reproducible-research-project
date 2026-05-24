@@ -195,3 +195,12 @@ make docker-check
 ```
 
 Each pull request should describe what changed and how it was verified.
+
+## AI Usage Disclosure
+
+LLM tools were used to support coding, debugging, documentation, and report
+writing. The models used were ChatGPT 5.5, Claude Opus 4.7, and Claude Sonnet
+4.6. AI assistance was used to improve reproducible project structure, Docker
+workflow, tests, and explanatory text. Externally sourced references and the
+original project are cited where relevant; no external code snippets were
+included without review and adaptation.
