@@ -3,10 +3,9 @@
 This repository is a reproducible Python rewrite of the original R project
 [Financial Time Series Analysis and Forecasting GARCH models](https://github.com/DavidAlexanderMoe/Financial-Time-Series-Analysis-and-Forecasting-GARCH-models).
 
-The project focuses on reproducibility rather than improving the econometric
-methodology. The workflow separates reusable Python modules, automated checks,
-HTML documentation, a Quarto report, and a Docker environment that can reproduce
-the report from a clean container.
+The project focuses on reproducibility. The workflow separates reusable Python
+modules, automated checks, HTML documentation, a Quarto report, and a Docker
+environment that can reproduce the report from a clean container.
 
 ## Group Members
 
