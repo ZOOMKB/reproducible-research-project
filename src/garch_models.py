@@ -467,7 +467,8 @@ class GARCHModels:
         """Fit GJR-GARCH(1,1) with variance targeting.
 
         Variance targeting constrains omega so that the unconditional
-        variance implied by the model equals the sample variance:
+        variance implied by the model equals the sample variance::
+
             omega = sample_var * (1 - alpha - gamma/2 - beta)
 
         This removes omega from the free parameters, reducing the
@@ -633,7 +634,8 @@ class GARCHModels:
 
         Delegates to GARCHDiagnostics.diagnostics_tgarch(). Requires
         fit5 to be fitted first. Runs Nyblom, ACF, Ljung-Box, ARCH
-        test, and BDS on log(|z|). No histogram, QQ, or sign bias.
+        test, and BDS on log absolute residuals. No histogram, QQ,
+        or sign bias.
 
         Args:
             save: Whether to save figures to disk.
