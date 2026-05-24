@@ -548,7 +548,75 @@ and in Section 7 for the ex-ante 10-day forecast.
 
 # Forecast Evaluation
 
-This section will be expanded in later pull requests.
+
+With the GARCH-family models fitted, we now use them to produce volatility
+forecasts. The fitted models are passed to the `GARCHForecaster`, which
+generates fixed-horizon ex-post forecasts: for a sequence of forecast
+origins inside the observed sample, the one-step-ahead conditional mean and
+standard deviation are recorded and paired with the return actually
+observed at each target date.
+
+```{python}
+#| label: forecast-run
+#| echo: false
+#| output: false
+
+from src.garch_predict import GARCHForecaster, run_forecasting
+
+forecasts = run_forecasting(gm, horizon=1, n_expost=100, verbose=False)
+
+forecaster = GARCHForecaster.from_garch_models(gm)
+forecast_fig_path = forecaster.plot_forecast_fixed(
+    forecasts["T-GARCH(1,1)"],
+    title="T-GARCH ex-post forecast",
+    save=True,
+)
+forecast_figures_dir = forecaster.figures_dir
+```
+
+The forecaster selects its method automatically from the volatility
+process of each fitted model. Plain GARCH models admit analytic forecasts;
+the EGARCH-based models used for GJR-GARCH and T-GARCH are forecast by
+simulation under a fixed seed, keeping the results reproducible.
+
+```{python}
+#| label: tbl-forecast-tgarch
+#| tbl-cap: "First ten one-step-ahead ex-post forecasts from the preferred T-GARCH model."
+
+forecasts["T-GARCH(1,1)"].head(10)
+```
+
+```{python}
+#| label: fig-forecast-tgarch
+#| echo: false
+#| fig-cap: "T-GARCH one-step-ahead ex-post forecasts over the evaluation window. Observed returns (points) against the forecast mean (line) and the 95% forecast band (shaded)."
+
+display(Image(filename=str(forecast_figures_dir / "forecast_fixed_t-garch_ex-post_forecast.png")))
+```
+
+The observed returns fall predominantly within the forecast band, and the
+band contracts and expands with forecast volatility rather than staying
+fixed — the behaviour expected from a working GARCH-type model.
+
+```{python}
+#| label: tbl-forecast-sigma-compare
+#| tbl-cap: "Mean forecast volatility over the evaluation window for each fitted model."
+
+import pandas as pd
+
+pd.DataFrame(
+    {
+        "model": list(forecasts.keys()),
+        "mean_forecast_sigma": [
+            fc_table["sigma"].mean() for fc_table in forecasts.values()
+        ],
+    }
+)
+```
+
+A formal evaluation — error measures and tests of relative forecast
+accuracy — is provided by the forecast-evaluation module and will be added
+to this section.
 
 # Reproducibility Notes
 
