@@ -750,15 +750,20 @@ forecast over the evaluation window.
 
 # Reproducibility Notes
 
-The data and EDA stage can be regenerated from the raw dataset by running the
-Python pipeline:
+The analysis code is organized as Python modules in `src/`, while this Quarto
+report imports those modules and presents the results. The full workflow can be
+run from a clean environment with:
 
 ```bash
-uv run python -m src.pipeline
+make reproduce
 ```
 
-The full report is rendered with:
+For Docker-based verification before release or presentation, the project uses:
 
 ```bash
-make report
+make docker-check
 ```
+
+The Docker image runs the same reproducible workflow and writes the rendered
+HTML report to `outputs/report/analysis.html`. The processed dataset is
+regenerated only when the source data is intentionally updated.

@@ -4,16 +4,19 @@ Contains the GARCHDiagnostics class which implements all diagnostic tests
 and plots for fitted GARCH models. Reproduces the diagnostic sections of
 TSA-GARCH.md (original R analysis).
 
-Diagnostic structure per model (not symmetric — read carefully):
-    sGARCH (fit1): ACF of z/|z|/z², Ljung-Box, ARCH test, histogram
-                   with Student-t overlay, QQ plot, sign bias test.
-    T-GARCH (fit5): Nyblom stability, ACF of z/|z|/z², Ljung-Box,
-                    ARCH test, BDS on log(|z|). No histogram, no QQ,
-                    no sign bias.
-    GJR, IGARCH, GJR+VT: no diagnostics beyond IC and coef tables.
+Diagnostic structure per model:
 
-Usage:
+* sGARCH: ACF diagnostics, Ljung-Box tests, ARCH test, histogram,
+  QQ plot, and sign bias test.
+* T-GARCH: Nyblom stability, ACF diagnostics, Ljung-Box tests,
+  ARCH test, and BDS on log absolute residuals.
+* GJR, IGARCH, and GJR with variance targeting: information criteria
+  and coefficient tables only.
+
+Usage::
+
     from src.garch_diagnostics import GARCHDiagnostics
+
     diag = GARCHDiagnostics(gm)
     diag.diagnostics_sgarch()
 """
@@ -168,9 +171,10 @@ class GARCHDiagnostics:
         """Run the full diagnostic suite for sGARCH (fit1).
 
         Reproduces R unnamed-chunk diagnostics after fit1. Runs in the
-        exact order from the R script:
-            1. Three-panel ACF of z, |z|, z²
-            2. Ljung-Box on z, |z|, z² at lags [7,8,11,16,21,26]
+        exact order from the R script::
+
+            1. Three-panel ACF of z, absolute z, and squared z
+            2. Ljung-Box tests at lags [7, 8, 11, 16, 21, 26]
             3. ARCH test on z at lags [4,8,12,16]
             4. Histogram of z with Student-t and normal overlays
             5. QQ plot of z against fitted Student-t quantiles
@@ -351,12 +355,13 @@ class GARCHDiagnostics:
         """Run the diagnostic suite for T-GARCH (fit5).
 
         Reproduces R diagnostic blocks after fit5. Runs in the exact
-        order from the R script:
+        order from the R script::
+
             1. Nyblom parameter stability test
-            2. Three-panel ACF of z, |z|, z²
-            3. Ljung-Box on z, |z|, z² at lags [8,9,12,17,22,27]
+            2. Three-panel ACF of z, absolute z, and squared z
+            3. Ljung-Box tests at lags [8, 9, 12, 17, 22, 27]
             4. ARCH test on z at lags [4,8,12,16]
-            5. BDS test on log(|z|)
+            5. BDS test on log absolute z
 
         Note: no histogram, no QQ plot, no sign bias for T-GARCH.
         The R script calls nyblom(fit5) twice — this is a copy-paste
@@ -548,7 +553,8 @@ class GARCHDiagnostics:
         level. This plot appears in the R analysis immediately after
         fitting T-GARCH and before the T-GARCH diagnostic ACF plots.
 
-        NIC formulas:
+        NIC formulas::
+
             sGARCH:    sigma2(u) = omega + alpha*u² + beta*sigma2_unc
             GJR-GARCH: sigma2(u) = omega + alpha*u² + gamma*u²*I(u<0)
                                    + beta*sigma2_unc

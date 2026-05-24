@@ -1,7 +1,7 @@
 Reproducible Financial Time Series Analysis
 ===========================================
 
-This documentation site will describe the Python package used to reproduce the
+This documentation site describes the Python modules used to reproduce the
 financial time series analysis.
 
 .. toctree::
@@ -11,20 +11,47 @@ financial time series analysis.
 API Reference
 -------------
 
+Configuration
+~~~~~~~~~~~~~
+
+.. automodule:: src.config
+   :members:
+
+Data Processing
+~~~~~~~~~~~~~~~
+
 .. automodule:: src.data
    :members:
 
 .. automodule:: src.diagnostics
    :members:
 
-.. automodule:: src.models
+.. automodule:: src.returns_analysis
+   :members:
+
+Mean and Volatility Models
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: src.arma_model
+   :members:
+
+.. automodule:: src.garch_models
+   :members:
+
+.. automodule:: src.garch_diagnostics
+   :members:
+
+Forecasting and Evaluation
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: src.garch_predict
    :members:
 
 .. automodule:: src.evaluation
    :members:
 
-.. automodule:: src.forecasting
-   :members:
+Pipeline
+~~~~~~~~
 
 .. automodule:: src.pipeline
    :members:

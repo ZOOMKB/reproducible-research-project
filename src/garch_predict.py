@@ -1,7 +1,7 @@
 """GARCH volatility forecasting for the ATVI reproducible research project.
 
 Usage:
-    from src.forecasting import GARCHForecaster
+    from src.garch_predict import GARCHForecaster
 
     gm = GARCHModels.from_processed_csv()
     gm.fit_sgarch()

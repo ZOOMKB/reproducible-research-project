@@ -1,6 +1,7 @@
 """Forecast evaluation for the ATVI reproducible research project.
 
-Usage:
+Usage::
+
     from src.evaluation import evaluate_volatility_forecast
 
     table = fc.forecast_fixed(gm.fit5, horizon=1, n_expost=100, seed=1)
@@ -8,7 +9,8 @@ Usage:
         realized=gk_vol_window, sigma=table["sigma"]
     )
 
-The module self-tests are run from the project root with:
+The module self-tests are run from the project root with::
+
     uv run python -m src.evaluation
 """
 
