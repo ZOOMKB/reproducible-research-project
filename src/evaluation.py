@@ -1,26 +1,5 @@
 """Forecast evaluation for the ATVI reproducible research project.
 
-Quantifies how well the GARCH-family forecasts produced by
-``src.forecasting`` track what was actually observed. The module is pure:
-every function takes plain arrays of numbers and returns numbers, with no
-dependency on the forecasting or model-fitting modules.
-
-Three groups of tools are provided:
-
-    error measures      ME, MAE, RMSE and their percentage and
-                        random-walk-scaled counterparts.
-    Diebold-Mariano     a test of equal predictive accuracy between two
-                        competing forecasts, with the Harvey-Leybourne-
-                        Newbold small-sample correction.
-    Mincer-Zarnowitz    a regression-based test of forecast optimality.
-
-Two named wrappers, ``evaluate_return_forecast`` and
-``evaluate_volatility_forecast``, apply the error measures to the two
-quantities of interest. A GARCH model forecasts a conditional standard
-deviation that is never directly observed, so the volatility wrapper
-compares the forecast against a realized-volatility proxy supplied by the
-caller (for example squared returns or Garman-Klass volatility).
-
 Usage:
     from src.evaluation import evaluate_volatility_forecast
 
@@ -39,29 +18,12 @@ import statsmodels.api as sm
 
 
 def _as_array(values) -> np.ndarray:
-    """Convert an input series or array to a 1-D float array.
 
-    Args:
-        values: A sequence, pandas Series, or numpy array.
-
-    Returns:
-        A 1-D numpy array of floats.
-    """
     return np.asarray(values, dtype=float).ravel()
 
 
 def _random_walk_naive(y_true: np.ndarray) -> np.ndarray:
-    """Build the random-walk naive forecast for a series.
 
-    The random-walk forecast for observation t is the value observed at
-    t - 1. The first observation has no predecessor and is returned as NaN.
-
-    Args:
-        y_true: The observed series.
-
-    Returns:
-        Array of the same length holding the lagged series.
-    """
     naive = np.empty_like(y_true)
     naive[0] = np.nan
     naive[1:] = y_true[:-1]
@@ -73,30 +35,7 @@ def error_measures(
     y_pred,
     naive=None,
 ) -> pd.Series:
-    """Compute forecast error measures for a forecast against actuals.
 
-    Reports level measures (ME, MAE, RMSE), percentage measures (MPE,
-    MAPE, RMSPE) and random-walk-scaled measures (ScMAE, ScRMSE).
-
-    Percentage measures are only defined when every observed value is
-    strictly positive; for a return series, which takes both signs, they
-    are returned as NaN. Scaled measures divide the forecast error by the
-    error of a random-walk naive forecast. When ``naive`` is not supplied
-    the random-walk forecast is constructed internally from ``y_true``.
-
-    Args:
-        y_true: Observed values.
-        y_pred: Forecast values, aligned with y_true.
-        naive: Optional naive-forecast values aligned with y_true. When
-            None, a random-walk naive forecast is built from y_true.
-
-    Returns:
-        Series indexed by measure name: ME, MAE, RMSE, MPE, MAPE, RMSPE,
-        ScMAE, ScRMSE.
-
-    Raises:
-        ValueError: If y_true and y_pred have different lengths.
-    """
     actual = _as_array(y_true)
     pred = _as_array(y_pred)
     if actual.shape != pred.shape:
@@ -145,41 +84,12 @@ def error_measures(
 
 
 def evaluate_return_forecast(actual, mean, naive=None) -> pd.Series:
-    """Evaluate a conditional-mean return forecast.
 
-    Thin wrapper around error_measures for the return forecast: the
-    observed return is compared against the forecast conditional mean.
-
-    Args:
-        actual: Observed returns.
-        mean: Forecast conditional mean returns.
-        naive: Optional naive-forecast values. When None a random-walk
-            naive forecast is used.
-
-    Returns:
-        Series of error measures, as returned by error_measures.
-    """
     return error_measures(actual, mean, naive=naive)
 
 
 def evaluate_volatility_forecast(realized, sigma, naive=None) -> pd.Series:
-    """Evaluate a conditional-volatility forecast.
 
-    A GARCH model forecasts a conditional standard deviation that is never
-    directly observed. The forecast is therefore compared against a
-    realized-volatility proxy supplied by the caller, such as the absolute
-    return, the squared return, or Garman-Klass volatility. Both inputs
-    must be expressed on the same scale.
-
-    Args:
-        realized: Realized-volatility proxy aligned with the forecasts.
-        sigma: Forecast conditional standard deviation.
-        naive: Optional naive-forecast values. When None a random-walk
-            naive forecast is used.
-
-    Returns:
-        Series of error measures, as returned by error_measures.
-    """
     return error_measures(realized, sigma, naive=naive)
 
 
@@ -190,35 +100,7 @@ def diebold_mariano(
     power: int = 2,
     hln: bool = True,
 ) -> pd.Series:
-    """Test two competing forecasts for equal predictive accuracy.
 
-    The Diebold-Mariano test compares the loss differential between two
-    forecast error series. The loss is the absolute error raised to
-    ``power`` (power 1 for absolute-error loss, power 2 for squared-error
-    loss). A long-run variance with a horizon-dependent lag truncation is
-    used so the test is valid for multi-step forecasts.
-
-    When ``hln`` is True the Harvey-Leybourne-Newbold small-sample
-    correction is applied: the statistic is rescaled and compared against
-    a t-distribution rather than a standard normal.
-
-    Args:
-        e1: Forecast errors of the first model.
-        e2: Forecast errors of the second model.
-        horizon: Forecast horizon; sets the lag truncation to horizon - 1.
-        power: Power of the absolute error in the loss function.
-        hln: Whether to apply the Harvey-Leybourne-Newbold correction.
-
-    Returns:
-        Series with the test statistic, p-value, horizon and power. A
-        negative statistic favours the first model; a positive statistic
-        favours the second. When the two error series are identical the
-        loss differential has zero variance and the function returns a
-        statistic of zero with a p-value of one.
-
-    Raises:
-        ValueError: If e1 and e2 have different lengths or horizon < 1.
-    """
     err1 = _as_array(e1)
     err2 = _as_array(e2)
     if err1.shape != err2.shape:
@@ -270,32 +152,7 @@ def diebold_mariano(
 
 
 def mincer_zarnowitz(y_true, y_pred, cov_type: str = "HAC") -> dict:
-    """Run the Mincer-Zarnowitz forecast-optimality regression.
 
-    The observed series is regressed on a constant and the forecast:
-
-        y_true = a + b * y_pred + error
-
-    A forecast is optimal when a = 0 and b = 1 jointly. The function fits
-    the regression and reports the joint F-test of that hypothesis. The
-    covariance estimator can be made robust to heteroskedasticity (HC0) or
-    to heteroskedasticity and autocorrelation (HAC).
-
-    Args:
-        y_true: Observed values.
-        y_pred: Forecast values aligned with y_true.
-        cov_type: Covariance estimator: 'nonrobust', 'HC0', or 'HAC'.
-
-    Returns:
-        Dict with keys:
-            'coef_table'  DataFrame of intercept and slope estimates
-            'f_stat'      joint-test F statistic for (a=0, b=1)
-            'f_pvalue'    p-value of the joint test
-            'cov_type'    the covariance estimator used
-
-    Raises:
-        ValueError: If y_true and y_pred have different lengths.
-    """
     actual = _as_array(y_true)
     pred = _as_array(y_pred)
     if actual.shape != pred.shape:
@@ -333,19 +190,7 @@ def mincer_zarnowitz(y_true, y_pred, cov_type: str = "HAC") -> dict:
 
 
 def prediction_bands(mean, sigma, alpha: float = 0.05) -> pd.DataFrame:
-    """Compute symmetric Gaussian prediction bands for a forecast.
 
-    Args:
-        mean: Forecast conditional means.
-        sigma: Forecast conditional standard deviations.
-        alpha: Total tail probability, e.g. 0.05 for a 95% band.
-
-    Returns:
-        DataFrame with columns mean, lower and upper.
-
-    Raises:
-        ValueError: If mean and sigma have different lengths.
-    """
     centre = _as_array(mean)
     spread = _as_array(sigma)
     if centre.shape != spread.shape:
@@ -359,3 +204,119 @@ def prediction_bands(mean, sigma, alpha: float = 0.05) -> pd.DataFrame:
             "upper": centre + z * spread,
         }
     )
+
+
+def _check(condition: bool, label: str) -> None:
+
+    if not condition:
+        raise AssertionError(f"FAILED: {label}")
+    print(f"  ok: {label}")
+
+
+def _self_test() -> None:
+
+    print("error_measures")
+    y_true = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    y_pred = np.array([1.5, 1.5, 3.5, 3.5, 5.5])
+    err = y_true - y_pred
+    em = error_measures(y_true, y_pred)
+    _check(np.isclose(em["ME"], err.mean()), "ME matches manual formula")
+    _check(np.isclose(em["MAE"], np.abs(err).mean()), "MAE matches manual formula")
+    _check(
+        np.isclose(em["RMSE"], np.sqrt((err**2).mean())),
+        "RMSE matches manual formula",
+    )
+
+    signed = error_measures(np.array([-1.0, 2.0, -3.0]), np.array([-0.9, 1.8, -3.3]))
+    _check(np.isnan(signed["MAPE"]), "MAPE is NaN for a signed series")
+
+    positive = error_measures(
+        np.array([10.0, 20.0, 30.0]), np.array([11.0, 19.0, 33.0])
+    )
+    _check(not np.isnan(positive["MAPE"]), "MAPE is defined for a positive series")
+
+    perfect = error_measures(y_true, y_true)
+    _check(np.isclose(perfect["RMSE"], 0.0), "RMSE is zero for a perfect forecast")
+
+    try:
+        error_measures(np.array([1.0, 2.0]), np.array([1.0]))
+        _check(False, "length mismatch raises ValueError")
+    except ValueError:
+        _check(True, "length mismatch raises ValueError")
+
+    print("evaluate_return_forecast / evaluate_volatility_forecast")
+    actual = np.array([0.1, -0.2, 0.3, -0.1])
+    mean = np.array([0.0, -0.1, 0.2, 0.0])
+    _check(
+        np.isclose(
+            evaluate_return_forecast(actual, mean)["RMSE"],
+            error_measures(actual, mean)["RMSE"],
+        ),
+        "return wrapper matches error_measures",
+    )
+    realized = np.array([1.0, 1.5, 2.0, 1.2])
+    sigma = np.array([1.1, 1.4, 1.9, 1.3])
+    _check(
+        np.isclose(
+            evaluate_volatility_forecast(realized, sigma)["MAE"],
+            error_measures(realized, sigma)["MAE"],
+        ),
+        "volatility wrapper matches error_measures",
+    )
+
+    print("diebold_mariano")
+    rng = np.random.default_rng(0)
+    e1 = rng.normal(scale=1.0, size=120)
+    e2 = rng.normal(scale=2.0, size=120)
+    dm = diebold_mariano(e1, e2, horizon=1, power=2)
+    _check(dm["statistic"] < 0, "statistic is negative when first model is better")
+    _check(0.0 <= dm["p_value"] <= 1.0, "p-value lies in the unit interval")
+
+    errors = np.array([0.1, -0.2, 0.3, -0.1, 0.2, 0.0, -0.3, 0.1])
+    dm_eq = diebold_mariano(errors, errors)
+    _check(
+        np.isclose(dm_eq["statistic"], 0.0) and np.isclose(dm_eq["p_value"], 1.0),
+        "identical errors give the degenerate result",
+    )
+
+    try:
+        diebold_mariano(np.array([0.1, 0.2]), np.array([0.1]))
+        _check(False, "length mismatch raises ValueError")
+    except ValueError:
+        _check(True, "length mismatch raises ValueError")
+
+    print("mincer_zarnowitz")
+    line = np.linspace(0.0, 10.0, 60)
+    mz = mincer_zarnowitz(line, line, cov_type="HC0")
+    coef = mz["coef_table"]
+    _check(
+        np.isclose(coef.loc["slope", "estimate"], 1.0),
+        "perfect forecast gives unit slope",
+    )
+    _check(
+        np.isclose(coef.loc["intercept", "estimate"], 0.0, atol=1e-8),
+        "perfect forecast gives zero intercept",
+    )
+    noisy = mincer_zarnowitz(line, line + rng.normal(scale=0.1, size=60))
+    _check(0.0 <= noisy["f_pvalue"] <= 1.0, "joint test p-value lies in unit interval")
+
+    print("prediction_bands")
+    bands = prediction_bands(
+        np.array([0.0, 0.0, 0.0]), np.array([1.0, 2.0, 3.0]), alpha=0.05
+    )
+    half_width = (bands["upper"] - bands["mean"]).to_numpy()
+    _check(
+        np.allclose(half_width, 1.959964 * np.array([1.0, 2.0, 3.0]), atol=1e-4),
+        "95% band half-width matches the normal quantile",
+    )
+    try:
+        prediction_bands(np.array([0.0, 0.0]), np.array([1.0]))
+        _check(False, "length mismatch raises ValueError")
+    except ValueError:
+        _check(True, "length mismatch raises ValueError")
+
+    print("all evaluation self-tests passed")
+
+
+if __name__ == "__main__":
+    _self_test()
