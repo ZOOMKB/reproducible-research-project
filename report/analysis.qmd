@@ -546,15 +546,14 @@ sample, and yields i.i.d. standardised residuals. The fitted T-GARCH
 model will be used in Section 6 for volatility forecasting evaluation
 and in Section 7 for the ex-ante 10-day forecast.
 
-# Forecast Evaluation
+# Forecasting
 
-
-With the GARCH-family models fitted, we now use them to produce volatility
-forecasts. The fitted models are passed to the `GARCHForecaster`, which
-generates fixed-horizon ex-post forecasts: for a sequence of forecast
-origins inside the observed sample, the one-step-ahead conditional mean and
-standard deviation are recorded and paired with the return actually
-observed at each target date.
+The fitted GARCH-family models are now used to produce volatility
+forecasts. Each model is passed to the `GARCHForecaster`, which generates
+fixed-horizon ex-post forecasts: for a sequence of forecast origins inside
+the observed sample, the one-step-ahead conditional mean and standard
+deviation are recorded and paired with the return actually observed at
+each target date.
 
 ```{python}
 #| label: forecast-run
@@ -602,8 +601,6 @@ fixed — the behaviour expected from a working GARCH-type model.
 #| label: tbl-forecast-sigma-compare
 #| tbl-cap: "Mean forecast volatility over the evaluation window for each fitted model."
 
-import pandas as pd
-
 pd.DataFrame(
     {
         "model": list(forecasts.keys()),
@@ -614,9 +611,142 @@ pd.DataFrame(
 )
 ```
 
-A formal evaluation — error measures and tests of relative forecast
-accuracy — is provided by the forecast-evaluation module and will be added
-to this section.
+# Forecast Evaluation
+
+The ex-post forecasts are now assessed quantitatively. For each model the
+one-step-ahead conditional mean is compared against the observed return,
+and the conditional volatility forecast is compared against a
+realized-volatility proxy. Two models are then compared directly with a
+test of equal predictive accuracy, and the preferred model is checked for
+forecast optimality.
+
+```{python}
+#| label: evaluation-run
+#| echo: false
+#| output: false
+
+import numpy as np
+
+from src.evaluation import (
+    diebold_mariano,
+    evaluate_return_forecast,
+    evaluate_volatility_forecast,
+    mincer_zarnowitz,
+    plot_mincer_zarnowitz,
+)
+
+tgarch_fc = forecasts["T-GARCH(1,1)"]
+sgarch_fc = forecasts["sGARCH(1,1)"]
+
+realized_proxy = np.abs(tgarch_fc["actual"].to_numpy())
+evaluation_figures_dir = forecast_figures_dir
+```
+
+## Forecast error measures
+
+```{python}
+#| label: tbl-return-error-measures
+#| tbl-cap: "Error measures for the one-step-ahead return forecast of each model. Percentage measures are undefined for a signed return series and are reported as NaN."
+
+return_errors = pd.DataFrame(
+    {
+        label: evaluate_return_forecast(table["actual"], table["mean"])
+        for label, table in forecasts.items()
+    }
+)
+return_errors
+```
+
+The level error measures summarise how close each model's conditional mean
+forecast lies to the observed return. The random-walk-scaled measures
+(ScMAE, ScRMSE) compare each forecast against a naive previous-value
+forecast: a value below one indicates the model improves on the naive
+benchmark.
+
+```{python}
+#| label: tbl-volatility-error-measures
+#| tbl-cap: "Error measures for the volatility forecast of each model, evaluated against the absolute return as a realized-volatility proxy."
+
+volatility_errors = pd.DataFrame(
+    {
+        label: evaluate_volatility_forecast(
+            np.abs(table["actual"].to_numpy()), table["sigma"]
+        )
+        for label, table in forecasts.items()
+    }
+)
+volatility_errors
+```
+
+A GARCH model forecasts a conditional standard deviation that is never
+directly observed, so the volatility forecast is assessed against the
+absolute return as a realized-volatility proxy.
+
+## Comparing models
+
+```{python}
+#| label: tbl-diebold-mariano
+#| tbl-cap: "Diebold-Mariano test comparing the T-GARCH and sGARCH return forecasts. A negative statistic favours the first model; the Harvey-Leybourne-Newbold small-sample correction is applied."
+
+e_tgarch = tgarch_fc["actual"].to_numpy() - tgarch_fc["mean"].to_numpy()
+e_sgarch = sgarch_fc["actual"].to_numpy() - sgarch_fc["mean"].to_numpy()
+
+dm_result = diebold_mariano(e_tgarch, e_sgarch, horizon=1, power=2)
+dm_result
+```
+
+The Diebold-Mariano test assesses whether the difference in forecast
+accuracy between the two models is statistically significant rather than
+an artefact of the particular evaluation window.
+
+## Forecast optimality
+
+```{python}
+#| label: tbl-mincer-zarnowitz
+#| tbl-cap: "Mincer-Zarnowitz regression of the realized-volatility proxy on the T-GARCH volatility forecast. Forecast optimality corresponds to an intercept of zero and a slope of one."
+
+mz_result = mincer_zarnowitz(realized_proxy, tgarch_fc["sigma"].to_numpy())
+mz_result["coef_table"]
+```
+
+```{python}
+#| label: mz-joint-test
+#| echo: false
+
+pd.DataFrame(
+    {
+        "statistic": ["Mincer-Zarnowitz joint F-test"],
+        "f_stat": [mz_result["f_stat"]],
+        "p_value": [mz_result["f_pvalue"]],
+    }
+)
+```
+
+```{python}
+#| label: fig-mincer-zarnowitz
+#| echo: false
+#| output: false
+
+plot_mincer_zarnowitz(
+    realized_proxy,
+    tgarch_fc["sigma"].to_numpy(),
+    title="T-GARCH Mincer-Zarnowitz optimality",
+    save=True,
+)
+```
+
+```{python}
+#| label: fig-mz-display
+#| echo: false
+#| fig-cap: "Mincer-Zarnowitz scatter for the T-GARCH volatility forecast. The fitted regression line is compared against the 45-degree optimality line; a gap between the two indicates departure from forecast optimality."
+
+display(Image(filename=str(evaluation_figures_dir / "t-garch_mincer-zarnowitz_optimality.png")))
+```
+
+The Mincer-Zarnowitz regression tests forecast optimality directly: an
+optimal forecast has a zero intercept and a unit slope. The joint F-test
+reports whether that hypothesis can be rejected for the T-GARCH volatility
+forecast over the evaluation window.
 
 # Reproducibility Notes
 
