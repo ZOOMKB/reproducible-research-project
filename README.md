@@ -17,23 +17,34 @@ environment that can reproduce the report from a clean container.
 ## Project Structure
 
 ```text
-data/raw/              Source ATVI dataset
+data/raw/              Original ATVI source dataset
 data/processed/        Processed dataset used by the analysis
-src/                   Python package with data, EDA, ARMA, GARCH, forecasting,
-                       and evaluation modules
+src/                   Python package with data processing, EDA, ARMA, GARCH,
+                       forecasting, diagnostics, and evaluation modules
 tests/                 Lightweight automated tests
 report/                Quarto report source
 docs/                  Sphinx documentation source
-outputs/               Generated reports and figures
+outputs/               Generated reports, figures, and documentation outputs
+
+Makefile               Reproducible command interface for checks and reports
+Dockerfile             Docker image definition for the reproducible environment
+docker-compose.yml     Docker services for development and final verification
+pyproject.toml         Python project metadata, dependencies, and tool settings
+uv.lock                Locked Python dependency versions
+.pre-commit-config.yaml
+                       Pre-commit hooks for formatting and code quality
+README.md              Project overview and reproduction instructions
 ```
 
 ## Reproduce From Docker Hub
 
-The final Docker image is intended to be pulled directly from Docker Hub during
-the presentation. The instructor does not need a local Python, uv, Quarto, or R
-installation.
+The public Docker image is:
 
-The final public image will be published as:
+```bash
+mykolanocap/reproducible-research-project:latest
+```
+
+To generate the report from the Docker image:
 
 ```bash
 docker pull mykolanocap/reproducible-research-project:latest
@@ -59,9 +70,9 @@ The rendered report is written to:
 outputs/report/analysis.html
 ```
 
-## What The Workflow Runs
+## What The Container Runs
 
-The container runs:
+The Docker image runs:
 
 ```bash
 make reproduce
@@ -73,9 +84,9 @@ This command executes the full reproducibility workflow:
 lint -> tests -> Sphinx documentation -> Quarto report
 ```
 
-The Quarto report is the main presentation artifact. It imports the Python
-modules in `src/`, regenerates figures and tables, and writes a self-contained
-HTML report to `outputs/report/analysis.html`.
+The Quarto report is the main project artifact. It imports the Python modules in
+`src/`, regenerates figures and tables, and writes a self-contained HTML report
+to `outputs/report/analysis.html`.
 
 ## Local Reproduction
 
@@ -117,8 +128,8 @@ uv run python -m src.data
 The repository includes two Docker Compose services:
 
 - `dev`: mounts the local project into the container for development checks.
-- `analysis`: runs the code copied into the built image, matching the final
-  reproducibility check more closely.
+- `analysis`: runs the code copied into the built image, matching final
+  reproducibility verification more closely.
 
 Initial Docker setup:
 
@@ -154,10 +165,10 @@ The generated documentation is written to:
 docs/_build/html/index.html
 ```
 
-## Build And Push Final Image
+## Build And Push Docker Image
 
-After the final pull request is merged into `main`, build and push a public
-multi-platform image:
+After changes to code, data, report, dependencies, or Docker configuration are
+merged into `main`, rebuild and push the public multi-platform image:
 
 ```bash
 docker buildx build \
@@ -166,7 +177,7 @@ docker buildx build \
   --push .
 ```
 
-Then verify the pushed image:
+Verify the pushed image:
 
 ```bash
 docker pull mykolanocap/reproducible-research-project:latest
