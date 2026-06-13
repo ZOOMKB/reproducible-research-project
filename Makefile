@@ -25,7 +25,7 @@ reproduce: lint test docs report
 
 docker-setup:
 	docker compose build
-	docker compose run --rm dev uv sync --frozen
+	docker compose run --rm dev uv sync --frozen --group r-bridge
 	docker compose run --rm dev make reproduce
 
 docker-lint:

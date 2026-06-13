@@ -5,6 +5,7 @@ ARG TARGETARCH
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    RPY2_CFFI_MODE=ABI \
     UV_LINK_MODE=copy \
     PATH="/app/.venv/bin:$PATH"
 
@@ -31,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpng-dev \
     libtiff5-dev \
     libjpeg-dev \
+    libtirpc-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN R -e " \
