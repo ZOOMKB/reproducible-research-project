@@ -31,8 +31,30 @@ jobs:
           sudo apt-get install -y ./quarto.deb
           rm -f quarto.deb
 
+      - name: Install R and rugarch
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            r-base r-base-dev \
+            cmake \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libxml2-dev \
+            libfontconfig1-dev \
+            libharfbuzz-dev \
+            libfribidi-dev \
+            libfreetype6-dev \
+            libpng-dev \
+            libtiff5-dev \
+            libjpeg-dev
+          sudo R -e "
+            options(repos=c(CRAN='https://cloud.r-project.org'));
+            install.packages(c('fs', 'nloptr'), dependencies=TRUE);
+            install.packages('rugarch', dependencies=TRUE);
+            if (!requireNamespace('rugarch', quietly=TRUE)) stop('rugarch install failed')
+          "
+
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --group r-bridge
 
       - name: Lint
         run: make lint
