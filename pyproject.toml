@@ -26,6 +26,10 @@ dev = [
     "sphinx-rtd-theme>=3.1.0",
 ]
 
+r-bridge = [
+    "rpy2==3.5.16",
+]
+
 [tool.ruff]
 line-length = 88
 src = ["src", "tests"]
