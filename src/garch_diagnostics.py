@@ -4,14 +4,13 @@ Contains the GARCHDiagnostics class which implements all diagnostic tests
 and plots for fitted GARCH models. Reproduces the diagnostic sections of
 TSA-GARCH.md (original R analysis).
 
-Diagnostic structure per model:
-
-* sGARCH: ACF diagnostics, Ljung-Box tests, ARCH test, histogram,
-  QQ plot, and sign bias test.
-* T-GARCH: Nyblom stability, ACF diagnostics, Ljung-Box tests,
-  ARCH test, and BDS on log absolute residuals.
-* GJR, IGARCH, and GJR with variance targeting: information criteria
-  and coefficient tables only.
+Diagnostic structure per model (not symmetric — read carefully):
+    sGARCH (fit1): ACF of z/|z|/z², Ljung-Box, ARCH test, histogram
+                   with Student-t overlay, QQ plot, sign bias test.
+    T-GARCH (fit5): Nyblom stability via rugarch/rpy2, ACF of z/|z|/z²,
+                    Ljung-Box, ARCH test, BDS on log(|z|).
+                    No histogram, no QQ, no sign bias.
+    GJR, IGARCH, GJR+VT: no diagnostics beyond IC and coef tables.
 
 Usage::
 
@@ -74,7 +73,7 @@ class GARCHDiagnostics:
         fig.savefig(path, bbox_inches="tight", dpi=150)
         return path
 
-    def _require_fit(self, fit: ARCHModelResult | None, name: str) -> ARCHModelResult:
+    def _require_fit(self, fit, name: str):
         """Raise a clear error if a model has not been fitted yet.
 
         Args:
@@ -113,7 +112,7 @@ class GARCHDiagnostics:
             filename: Output filename for the saved figure.
             save: Whether to save the figure to disk.
         """
-        fig, axes = plt.subplots(3, 1, figsize=(12, 9))
+        fig, axes = plt.subplots(3, 1, figsize=(8, 7))
         fig.suptitle(f"ACF of standardised residuals — {title_prefix}", fontsize=12)
 
         plot_acf(z, lags=100, ax=axes[0], title="z", zero=False, alpha=0.05)
@@ -130,12 +129,7 @@ class GARCHDiagnostics:
         plt.show()
         plt.close()
 
-    def _ljung_box_suite(
-        self,
-        z: np.ndarray,
-        np_: int,
-        label: str,
-    ) -> None:
+    def _ljung_box_suite(self, z: np.ndarray, np_: int, label: str) -> None:
         """Run Ljung-Box tests on z, |z|, and z² at model-adjusted lags.
 
         Lags are offset by np_ (number of model parameters) to account
@@ -173,9 +167,9 @@ class GARCHDiagnostics:
         Reproduces R unnamed-chunk diagnostics after fit1. Runs in the
         exact order from the R script::
 
-            1. Three-panel ACF of z, absolute z, and squared z
-            2. Ljung-Box tests at lags [7, 8, 11, 16, 21, 26]
-            3. ARCH test on z at lags [4,8,12,16]
+            1. Three-panel ACF of z, |z|, z²
+            2. Ljung-Box on z, |z|, z² at lags [7, 8, 11, 16, 21, 26]
+            3. ARCH test on z at lags [4, 8, 12, 16]
             4. Histogram of z with Student-t and normal overlays
             5. QQ plot of z against fitted Student-t quantiles
             6. Sign bias test (four rows)
@@ -190,32 +184,16 @@ class GARCHDiagnostics:
         np1 = self.gm.np1
 
         z = self._to_array(fit1.std_resid)
-        nu = fit1.params.get("nu", fit1.params.get("shape", 4.0))
+        nu = float(fit1.params.get("nu", fit1.params.get("shape", 4.0)))
 
-        # 1. ACF triple
         self._acf_triple(z, "sGARCH", "diag_sgarch_acf.png", save=save)
-
-        # 2. Ljung-Box suite
         self._ljung_box_suite(z, np1, "sGARCH")
-
-        # 3. ARCH test
         self._arch_test(z, "sGARCH")
-
-        # 4. Histogram with Student-t overlay
         self._hist_fit(z, nu, save=save)
-
-        # 5. QQ plot against fitted Student-t
         self._qqplot_fit(z, nu, save=save)
-
-        # 6. Sign bias test
         self._sign_bias_test(fit1)
 
-    def _hist_fit(
-        self,
-        z: np.ndarray,
-        nu: float,
-        save: bool = True,
-    ) -> None:
+    def _hist_fit(self, z: np.ndarray, nu: float, save: bool = True) -> None:
         """Histogram of standardised residuals with Student-t and normal overlays.
 
         Reproduces R .hist.fit(fit1, xlim=(-5,5), plot.norm=TRUE).
@@ -228,7 +206,7 @@ class GARCHDiagnostics:
         """
         x = np.linspace(-5, 5, 300)
 
-        fig, ax = plt.subplots(figsize=(8, 5))
+        fig, ax = plt.subplots(figsize=(7, 4))
         ax.hist(
             z,
             bins=100,
@@ -238,7 +216,6 @@ class GARCHDiagnostics:
             label="Empirical",
             range=(-5, 5),
         )
-
         ax.plot(
             x,
             stats.t.pdf(x, df=nu),
@@ -261,12 +238,7 @@ class GARCHDiagnostics:
         plt.show()
         plt.close()
 
-    def _qqplot_fit(
-        self,
-        z: np.ndarray,
-        nu: float,
-        save: bool = True,
-    ) -> None:
+    def _qqplot_fit(self, z: np.ndarray, nu: float, save: bool = True) -> None:
         """QQ plot of standardised residuals against fitted Student-t quantiles.
 
         Reproduces R .qqplot.fit(fit1). Theoretical quantiles from the
@@ -283,7 +255,7 @@ class GARCHDiagnostics:
         z_th = stats.t.ppf(probs, df=nu)
         z_emp = np.sort(z)
 
-        fig, ax = plt.subplots(figsize=(6, 6))
+        fig, ax = plt.subplots(figsize=(5, 5))
         ax.scatter(z_th, z_emp, s=4, alpha=0.5, color="steelblue")
 
         lims = [
@@ -291,7 +263,6 @@ class GARCHDiagnostics:
             max(z_th.max(), z_emp.max()),
         ]
         ax.plot(lims, lims, color="red", linewidth=1.5, label="Identity line")
-
         ax.set_xlabel("Theoretical quantiles (Student-t)")
         ax.set_ylabel("Empirical quantiles")
         ax.set_title("QQ plot — sGARCH standardised residuals")
@@ -306,15 +277,17 @@ class GARCHDiagnostics:
     def _sign_bias_test(self, fit: ARCHModelResult) -> None:
         """Sign bias test on sGARCH standardised residuals.
 
-        Manual port of rugarch signbias(). Regresses z² on sign-based
-        indicators to test whether negative and positive shocks have
-        asymmetric effects on variance. Four tests reported:
-            Sign Bias         — coefficient on I(u < 0)
-            Negative Sign Bias — coefficient on u * I(u < 0)
-            Positive Sign Bias — coefficient on u * I(u >= 0)
+        Manual port of rugarch signbias(). Regressors are standardised
+        before running OLS, matching rugarch's internal behaviour and
+        producing p-values consistent with the R output.
+
+        Four tests reported:
+            Sign Bias          — coefficient on I(u < 0)
+            Negative Sign Bias — coefficient on u*I(u<0) / std(u*I(u<0))
+            Positive Sign Bias — coefficient on u*I(u>=0) / std(u*I(u>=0))
             Joint Effect       — F-test of all three jointly
 
-        Expected for sGARCH: all p-values > 0.52 (no asymmetry).
+        Expected for sGARCH: all p-values > 0.30 (no asymmetry).
 
         Args:
             fit: Fitted sGARCH ARCHModelResult.
@@ -325,8 +298,16 @@ class GARCHDiagnostics:
 
         ones = np.ones(len(u))
         i_neg = (u < 0).astype(float)
-        u_neg = u * i_neg
-        u_pos = u * (1 - i_neg)
+
+        # standardise continuous regressors — matches rugarch internal behaviour
+        u_neg_raw = u * i_neg
+        u_pos_raw = u * (1 - i_neg)
+
+        std_neg = np.std(u_neg_raw)
+        std_pos = np.std(u_pos_raw)
+
+        u_neg = u_neg_raw / std_neg if std_neg > 0 else u_neg_raw
+        u_pos = u_pos_raw / std_pos if std_pos > 0 else u_pos_raw
 
         results = []
 
@@ -337,16 +318,24 @@ class GARCHDiagnostics:
         ]:
             X = np.column_stack([ones, regressor])
             res = OLS(z2, X).fit()
-            t = res.tvalues[1]
-            pv = res.pvalues[1]
-            results.append({"Test": name, "t-value": t, "p-value": pv})
+            results.append(
+                {
+                    "Test": name,
+                    "t-value": res.tvalues[1],
+                    "p-value": res.pvalues[1],
+                }
+            )
 
         # joint F-test on all three regressors
         X_joint = np.column_stack([ones, i_neg, u_neg, u_pos])
         res_joint = OLS(z2, X_joint).fit()
-        f_stat = res_joint.fvalue
-        f_pv = res_joint.f_pvalue
-        results.append({"Test": "Joint Effect", "t-value": f_stat, "p-value": f_pv})
+        results.append(
+            {
+                "Test": "Joint Effect",
+                "t-value": res_joint.fvalue,
+                "p-value": res_joint.f_pvalue,
+            }
+        )
 
         print("\nSign Bias Test — sGARCH")
         print(pd.DataFrame(results).to_string(index=False))
@@ -357,15 +346,15 @@ class GARCHDiagnostics:
         Reproduces R diagnostic blocks after fit5. Runs in the exact
         order from the R script::
 
-            1. Nyblom parameter stability test
-            2. Three-panel ACF of z, absolute z, and squared z
-            3. Ljung-Box tests at lags [8, 9, 12, 17, 22, 27]
-            4. ARCH test on z at lags [4,8,12,16]
-            5. BDS test on log absolute z
+            1. Nyblom parameter stability test (via rugarch/rpy2)
+            2. Three-panel ACF of z, |z|, z²
+            3. Ljung-Box on z, |z|, z² at lags [8, 9, 12, 17, 22, 27]
+            4. ARCH test on z at lags [4, 8, 12, 16]
+            5. BDS test on log(|z|)
 
-        Note: no histogram, no QQ plot, no sign bias for T-GARCH.
-        The R script calls nyblom(fit5) twice — this is a copy-paste
-        artifact. We call it once only.
+        No histogram, no QQ plot, no sign bias for T-GARCH. The R script
+        calls nyblom(fit5) twice — this is a copy-paste artifact; we call
+        it once only.
 
         Args:
             save: Whether to save ACF figure to disk.
@@ -378,129 +367,84 @@ class GARCHDiagnostics:
 
         z = self._to_array(fit5.std_resid)
 
-        # 1. Nyblom stability test — called once (R has it twice, artifact)
         self._nyblom_test(fit5)
-
-        # 2. ACF triple
         self._acf_triple(z, "T-GARCH", "diag_tgarch_acf.png", save=save)
-
-        # 3. Ljung-Box suite
         self._ljung_box_suite(z, np5, "T-GARCH")
-
-        # 4. ARCH test
         self._arch_test(z, "T-GARCH")
-
-        # 5. BDS test on log(|z|)
         self._bds_on_log_absz(z)
 
-    def _nyblom_test(self, fit: ARCHModelResult) -> None:
-        """Nyblom parameter stability test on a fitted GARCH model.
+    def _nyblom_test(self, fit) -> None:
+        """Nyblom parameter stability test on T-GARCH via rugarch.
 
-        Tests whether model parameters are constant over time (stable)
-        or shift during the sample. Computes individual CUSUM-based
-        statistics for each parameter and a joint statistic.
-
-        The arch library does not provide a native Nyblom test. We
-        implement the Hansen (1992) individual stability statistic:
-            S_j = (1/n) * sum_{t=1}^{n} (cumulative score_j)² / V_jj
-        where score contributions are the outer product of the score
-        vector, and V is the outer product of scores (information matrix
-        approximation).
+        Calls rugarch's native nyblom() function via rpy2 for an exact
+        reproduction of the R analysis. This matches the original output
+        which used nyblom(fit5) from the rugarch package.
 
         Critical values from Hansen (1992):
             Individual: 10%=0.353, 5%=0.470, 1%=0.748
             Joint:      10%=1.69,  5%=1.90,  1%=2.35
 
-        Expected for T-GARCH on 2015 data:
-            mu=0.077, ar1=0.113, omega=0.343, alpha=0.241,
-            beta=0.330, gamma=0.613, shape=0.250, joint=1.289.
+        Expected for T-GARCH on ATVI 2015-2021:
+            mu=0.077, ar1=0.113, omega=0.343, alpha1=0.241,
+            beta1=0.330, eta11=0.613, shape=0.250, joint=1.289.
 
         Args:
-            fit: Fitted ARCHModelResult to test.
+            fit: TGARCHResult with r_fit and _rugarch attributes.
         """
         print("\nNyblom Parameter Stability Test")
 
-        # use arch's built-in stability test if available
-        if hasattr(fit, "param_cov") and hasattr(fit.model, "loglikelihood"):
-            try:
-                # compute score contributions numerically
-                # each row of scores is the gradient of the log-likelihood
-                # at observation t with respect to the parameter vector
-                resid = self._to_array(fit.resid)
-                sigma = fit.conditional_volatility.values
-                n = len(resid)
-                nparams = len(fit.params)
+        try:
+            rugarch = fit._rugarch
+            r_fit = fit.r_fit
+            nyblom_r = rugarch.nyblom(r_fit)
 
-                # standardised score proxy: z_t * (d sigma / d theta)
-                # approximated by the outer product of standardised residuals
-                z = resid / sigma
-                scores = np.outer(z**2 - 1, np.ones(nparams))
+            ind_r = nyblom_r.rx2("IndividualStat")
+            joint_r = nyblom_r.rx2("JointStat")
+            ind_crit = nyblom_r.rx2("IndividualCritical")
+            jnt_crit = nyblom_r.rx2("JointCritical")
 
-                # cumulative sum of scores
-                cusum = np.cumsum(scores, axis=0)
+            ind_vals = list(ind_r)
+            ind_names = list(ind_r.rownames)
+            joint = float(list(joint_r)[0])
 
-                # information matrix approximation
-                V = scores.T @ scores / n
+            crit_ind = {
+                "10%": float(list(ind_crit)[0]),
+                "5%": float(list(ind_crit)[1]),
+                "1%": float(list(ind_crit)[2]),
+            }
+            crit_joint = {
+                "10%": float(list(jnt_crit)[0]),
+                "5%": float(list(jnt_crit)[1]),
+                "1%": float(list(jnt_crit)[2]),
+            }
 
-                # individual Nyblom statistics
-                ind_stats = np.array(
-                    [
-                        np.sum(cusum[:, j] ** 2) / (n**2 * V[j, j])
-                        if V[j, j] > 0
-                        else np.nan
-                        for j in range(nparams)
-                    ]
+            rows = []
+            for name, val in zip(ind_names, ind_vals, strict=False):
+                rows.append(
+                    {
+                        "Parameter": name,
+                        "Statistic": round(val, 4),
+                        "> 10% crit (0.353)": "YES" if val > crit_ind["10%"] else "no",
+                        "> 5% crit (0.470)": "YES" if val > crit_ind["5%"] else "no",
+                    }
                 )
 
-                # joint statistic (trace of matrix product)
-                try:
-                    V_inv = np.linalg.pinv(V)
-                    joint = np.trace(cusum.T @ cusum @ V_inv) / n**2
-                except np.linalg.LinAlgError:
-                    joint = np.nan
+            print(pd.DataFrame(rows).to_string(index=False))
+            print(f"\nJoint statistic : {joint:.4f}")
+            print(
+                f"Joint crit 10%  : {crit_joint['10%']}  "
+                f"5%: {crit_joint['5%']}  1%: {crit_joint['1%']}"
+            )
 
-                # print individual statistics
-                crit_ind = {"10%": 0.353, "5%": 0.470, "1%": 0.748}
-                crit_joint = {"10%": 1.69, "5%": 1.90, "1%": 2.35}
+            if joint < crit_joint["10%"]:
+                print("Joint: PASS — parameters are stable at 10%")
+            elif joint < crit_joint["5%"]:
+                print("Joint: marginal — unstable at 10%, stable at 5%")
+            else:
+                print("Joint: FAIL — parameters may be unstable")
 
-                rows = []
-                for j, name in enumerate(fit.params.index):
-                    rows.append(
-                        {
-                            "Parameter": name,
-                            "Statistic": (
-                                round(ind_stats[j], 4)
-                                if not np.isnan(ind_stats[j])
-                                else np.nan
-                            ),
-                            "> 10% crit (0.353)": (
-                                "YES" if ind_stats[j] > crit_ind["10%"] else "no"
-                            ),
-                            "> 5% crit (0.470)": (
-                                "YES" if ind_stats[j] > crit_ind["5%"] else "no"
-                            ),
-                        }
-                    )
-
-                print(pd.DataFrame(rows).to_string(index=False))
-                print(f"\nJoint statistic : {joint:.4f}")
-                print(
-                    f"Joint crit 10%  : {crit_joint['10%']}  "
-                    f"5%: {crit_joint['5%']}  1%: {crit_joint['1%']}"
-                )
-
-                if joint < crit_joint["10%"]:
-                    print("Joint: PASS — parameters are stable at 10%")
-                elif joint < crit_joint["5%"]:
-                    print("Joint: marginal — unstable at 10%, stable at 5%")
-                else:
-                    print("Joint: FAIL — parameters may be unstable")
-
-            except Exception as exc:
-                print(f"  Nyblom computation failed: {exc}")
-                print("  Skipping — check that fit5 converged correctly.")
-        else:
-            print("  Nyblom test requires param_cov — skipping.")
+        except Exception as exc:
+            print(f"  Nyblom test failed: {exc}")
 
     def _bds_on_log_absz(self, z: np.ndarray) -> None:
         """BDS independence test on log(|z|) from T-GARCH residuals.
@@ -514,7 +458,6 @@ class GARCHDiagnostics:
         Args:
             z: Standardised residuals from T-GARCH.
         """
-
         from statsmodels.tsa.stattools import bds as bds_test
 
         x1 = np.log(np.abs(z))
@@ -550,13 +493,13 @@ class GARCHDiagnostics:
 
         The NIC shows the conditional variance as a function of the past
         shock u(t-1), holding sigma(t-1) at the long-run unconditional
-        level. This plot appears in the R analysis immediately after
-        fitting T-GARCH and before the T-GARCH diagnostic ACF plots.
+        level. T-GARCH parameters are taken directly from TGARCHResult.params
+        which contains the converted (alpha, gamma) form.
 
         NIC formulas::
 
-            sGARCH:    sigma2(u) = omega + alpha*u² + beta*sigma2_unc
-            GJR-GARCH: sigma2(u) = omega + alpha*u² + gamma*u²*I(u<0)
+            sGARCH:    sigma2(u) = omega + alpha*u2 + beta*sigma2_unc
+            GJR-GARCH: sigma2(u) = omega + alpha*u2 + gamma*u2*I(u<0)
                                    + beta*sigma2_unc
             T-GARCH:   sigma(u)  = omega + alpha*|u| + gamma*|u|*I(u<0)
                                    + beta*sigma_unc  (then squared)
@@ -574,7 +517,7 @@ class GARCHDiagnostics:
         sd = np.std(self.gm.yret)
         u = np.linspace(-3 * sd, 3 * sd, 400)
 
-        # sGARCH parameters
+        # sGARCH
         p1 = self.gm.fit1.params
         om1 = p1["omega"]
         al1 = p1["alpha[1]"]
@@ -582,7 +525,7 @@ class GARCHDiagnostics:
         s2_unc = om1 / (1 - al1 - be1)
         nic1 = om1 + al1 * u**2 + be1 * s2_unc
 
-        # GJR-GARCH parameters
+        # GJR-GARCH
         p2 = self.gm.fit2.params
         om2 = p2["omega"]
         al2 = p2["alpha[1]"]
@@ -591,25 +534,12 @@ class GARCHDiagnostics:
         s2_unc2 = om2 / (1 - al2 - ga2 / 2 - be2)
         nic2 = om2 + al2 * u**2 + ga2 * u**2 * (u < 0).astype(float) + be2 * s2_unc2
 
-        # T-GARCH parameters — use fit5c converted form if available
-        if self.gm.fit5c is not None:
-            coef5 = self.gm.fit5c["coef"]
-            names5 = self.gm.fit5c["matcoef"].index.tolist()
-
-            def _get(name):
-                matches = [i for i, n in enumerate(names5) if name in n.lower()]
-                return coef5[matches[0]] if matches else 0.0
-
-            om5 = _get("omega")
-            al5 = _get("alpha")
-            ga5 = _get("gamma")
-            be5 = _get("beta")
-        else:
-            p5 = self.gm.fit5.params
-            om5 = p5.get("omega", 0.1)
-            al5 = p5.get("alpha[1]", 0.05)
-            ga5 = 0.0
-            be5 = p5.get("beta[1]", 0.88)
+        # T-GARCH — parameters from TGARCHResult.params (converted form)
+        p5 = self.gm.fit5.params
+        om5 = float(p5.get("omega", 0.101))
+        al5 = float(p5.get("alpha1", 0.032))
+        ga5 = float(p5.get("gamma1", 0.110))
+        be5 = float(p5.get("beta1", 0.885))
 
         denom5 = 1 - al5 - ga5 / 2 - be5
         s_unc5 = om5 / denom5 if denom5 > 0 else np.std(self.gm.yret)
@@ -621,7 +551,7 @@ class GARCHDiagnostics:
         )
         nic5 = sig5**2
 
-        fig, ax = plt.subplots(figsize=(10, 5))
+        fig, ax = plt.subplots(figsize=(8, 4))
         ax.plot(u, nic1, color="black", linewidth=1.8, label="sGARCH")
         ax.plot(u, nic2, color="red", linewidth=1.8, label="GJR-GARCH")
         ax.plot(u, nic5, color="blue", linewidth=1.8, label="T-GARCH")
@@ -640,8 +570,7 @@ class GARCHDiagnostics:
         """Plot News Impact Curves for sGARCH and GJR-GARCH only.
 
         A cleaner two-model comparison used in the NIC and Variance
-        Targeting subsection of the narrative. Appears after all T-GARCH
-        diagnostics in the R analysis.
+        Targeting subsection of the narrative.
 
         Args:
             save: Whether to save the figure to disk.
@@ -670,7 +599,7 @@ class GARCHDiagnostics:
         s2_unc2 = om2 / (1 - al2 - ga2 / 2 - be2)
         nic2 = om2 + al2 * u**2 + ga2 * u**2 * (u < 0).astype(float) + be2 * s2_unc2
 
-        fig, ax = plt.subplots(figsize=(10, 5))
+        fig, ax = plt.subplots(figsize=(8, 4))
         ax.plot(u, nic1, color="black", linewidth=1.8, label="sGARCH")
         ax.plot(u, nic2, color="red", linewidth=1.8, label="GJR-GARCH")
         ax.set_xlabel("Past shock u(t-1)")

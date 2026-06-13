@@ -18,6 +18,28 @@ RUN apt-get update \
     && rm -f quarto.tar.gz \
     && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    r-base r-base-dev \
+    cmake \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libxml2-dev \
+    libfontconfig1-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
+    libfreetype6-dev \
+    libpng-dev \
+    libtiff5-dev \
+    libjpeg-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN R -e " \
+    options(repos=c(CRAN='https://cloud.r-project.org')); \
+    install.packages(c('fs', 'nloptr'), dependencies=TRUE); \
+    install.packages('rugarch', dependencies=TRUE); \
+    if (!requireNamespace('rugarch', quietly=TRUE)) stop('rugarch install failed') \
+"
+
 COPY --from=ghcr.io/astral-sh/uv:0.9.3 /uv /usr/local/bin/uv
 
 WORKDIR /app
