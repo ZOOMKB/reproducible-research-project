@@ -19,7 +19,6 @@ import numpy as np
 import pandas as pd
 import scipy.stats as stats
 from arch.univariate import EGARCH
-from arch.univariate.base import ARCHModelResult
 
 from src.config import OUTPUTS_DIR
 
@@ -56,7 +55,7 @@ class GARCHForecaster:
         return path
 
     @staticmethod
-    def _require_fit(fit: ARCHModelResult | None, name: str) -> ARCHModelResult:
+    def _require_fit(fit, name: str):
         if fit is None:
             raise RuntimeError(
                 f"{name} is not fitted yet. Call the corresponding fit_* method first."
@@ -64,7 +63,21 @@ class GARCHForecaster:
         return fit
 
     @staticmethod
-    def _is_simulation_model(fit: ARCHModelResult) -> bool:
+    def _is_simulation_model(fit) -> bool:
+        """Return True if the model requires simulation-based forecasting.
+
+        TGARCHResult has no .model attribute and handles forecasting via
+        ugarchforecast internally — always returns False for it.
+        EGARCH models require simulation in the arch library.
+
+        Args:
+            fit: Fitted model result (ARCHModelResult or TGARCHResult).
+
+        Returns:
+            True if simulation forecasting should be used, False otherwise.
+        """
+        if not hasattr(fit, "model"):
+            return False
         return isinstance(fit.model.volatility, EGARCH)
 
     def _nobs(self) -> int:
@@ -85,7 +98,6 @@ class GARCHForecaster:
         sigma: np.ndarray,
         alpha: float,
     ) -> tuple[np.ndarray, np.ndarray]:
-
         z = stats.norm.ppf(1.0 - alpha / 2.0)
         lower = mean - z * sigma
         upper = mean + z * sigma
@@ -93,7 +105,7 @@ class GARCHForecaster:
 
     def forecast_fixed(
         self,
-        fit: ARCHModelResult,
+        fit,
         horizon: int = 1,
         n_expost: int = 100,
         alpha: float = 0.05,
@@ -140,7 +152,7 @@ class GARCHForecaster:
 
     def forecast_rolling(
         self,
-        fit: ARCHModelResult,
+        fit,
         horizon: int = 10,
         alpha: float = 0.05,
         seed: int | None = None,
@@ -227,6 +239,7 @@ class GARCHForecaster:
         filename: str | None = None,
         save: bool = True,
     ) -> plt.Figure:
+
         fig, ax = plt.subplots(figsize=(10, 5))
 
         ax.fill_between(
@@ -263,12 +276,29 @@ class GARCHForecaster:
 
     def _run_forecast(
         self,
-        fit: ARCHModelResult,
+        fit,
         horizon: int,
         start: int,
         seed: int | None,
         n_sims: int,
     ):
+        """Route forecast call to the correct method for this model type.
+
+        For TGARCHResult: calls fit.forecast() which routes to rugarch's
+        ugarchforecast via rpy2 — no simulation needed.
+        For EGARCH (arch): uses simulation-based forecasting.
+        For all other arch models: uses analytic forecasting.
+
+        Args:
+            fit: Fitted model result (ARCHModelResult or TGARCHResult).
+            horizon: Number of steps ahead.
+            start: Start index for rolling forecasts.
+            seed: Random seed for simulation (ignored for TGARCHResult).
+            n_sims: Number of simulations (ignored for TGARCHResult).
+
+        Returns:
+            Forecast result with .mean and .variance DataFrames.
+        """
         if self._is_simulation_model(fit):
             generator = np.random.default_rng(seed)
             return fit.forecast(
