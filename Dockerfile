@@ -37,8 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN R -e " \
     options(repos=c(CRAN='https://cloud.r-project.org')); \
-    install.packages(c('fs', 'nloptr'), dependencies=TRUE); \
-    install.packages('rugarch', dependencies=TRUE); \
+    install.packages('rugarch', Ncpus=2); \
     if (!requireNamespace('rugarch', quietly=TRUE)) stop('rugarch install failed') \
 "
 
