@@ -54,6 +54,8 @@ jobs:
           "
 
       - name: Install dependencies
+        env:
+          RPY2_CFFI_MODE: ABI
         run: uv sync --frozen --group r-bridge
 
       - name: Lint
