@@ -72,16 +72,6 @@ def error_measures(
     mae = np.nanmean(np.abs(error))
     rmse = np.sqrt(np.nanmean(error**2))
 
-    if np.all(actual > 0):
-        pct_error = error / actual
-        mpe = np.nanmean(pct_error)
-        mape = np.nanmean(np.abs(pct_error))
-        rmspe = np.sqrt(np.nanmean(pct_error**2))
-    else:
-        mpe = np.nan
-        mape = np.nan
-        rmspe = np.nan
-
     naive_values = _random_walk_naive(actual) if naive is None else _as_array(naive)
     naive_error = actual - naive_values
     naive_mae = np.nanmean(np.abs(naive_error))
@@ -95,9 +85,6 @@ def error_measures(
             "ME": me,
             "MAE": mae,
             "RMSE": rmse,
-            "MPE": mpe,
-            "MAPE": mape,
-            "RMSPE": rmspe,
             "ScMAE": sc_mae,
             "ScRMSE": sc_rmse,
         },
@@ -305,14 +292,6 @@ def _self_test() -> None:
         np.isclose(em["RMSE"], np.sqrt((err**2).mean())),
         "RMSE matches manual formula",
     )
-
-    signed = error_measures(np.array([-1.0, 2.0, -3.0]), np.array([-0.9, 1.8, -3.3]))
-    _check(np.isnan(signed["MAPE"]), "MAPE is NaN for a signed series")
-
-    positive = error_measures(
-        np.array([10.0, 20.0, 30.0]), np.array([11.0, 19.0, 33.0])
-    )
-    _check(not np.isnan(positive["MAPE"]), "MAPE is defined for a positive series")
 
     perfect = error_measures(y_true, y_true)
     _check(np.isclose(perfect["RMSE"], 0.0), "RMSE is zero for a perfect forecast")

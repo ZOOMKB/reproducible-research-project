@@ -21,19 +21,17 @@ def test_error_measures_match_manual_values() -> None:
     assert np.isclose(measures["ME"], -1 / 3)
     assert np.isclose(measures["MAE"], 2 / 3)
     assert np.isclose(measures["RMSE"], np.sqrt(0.5))
-    assert np.isclose(measures["MAPE"], 1 / 3)
     assert np.isclose(measures["ScMAE"], (2 / 3) / 0.5)
 
 
 def test_return_forecast_metrics_handle_signed_series() -> None:
-    """Percentage errors should be undefined for signed return series."""
+    """The return wrapper should compute level errors on a signed series."""
     actual = np.array([0.1, -0.2, 0.3])
     forecast = np.array([0.0, -0.1, 0.2])
 
     measures = evaluate_return_forecast(actual, forecast)
 
     assert np.isclose(measures["MAE"], 0.1)
-    assert np.isnan(measures["MAPE"])
 
 
 def test_volatility_forecast_metrics_are_defined() -> None:
@@ -44,7 +42,6 @@ def test_volatility_forecast_metrics_are_defined() -> None:
     measures = evaluate_volatility_forecast(realized, sigma)
 
     assert np.isclose(measures["MAE"], (0.1 + 0.1 + 0.2) / 3)
-    assert not np.isnan(measures["MAPE"])
 
 
 def test_prediction_bands_use_normal_quantile() -> None:
